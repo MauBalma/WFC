@@ -96,15 +96,18 @@ namespace Balma.WFC
         public class State
         {
             public Tile[,] tiles;
+            public int emptyTiles;
             
             public bool IsComplete()//TODO Replace with a counter emptyCount and decrease it every state expansion
             {
-                for (int i = 0; i < tiles.GetLength(0); i++)
-                for (int j = 0; j < tiles.GetLength(1); j++)
-                    if (tiles[i, j] == default)
-                        return false;
+                // for (int i = 0; i < tiles.GetLength(0); i++)
+                // for (int j = 0; j < tiles.GetLength(1); j++)
+                //     if (tiles[i, j] == default)
+                //         return false;
+                //
+                // return true;
 
-                return true;
+                return emptyTiles == 0;
             }
 
             public bool CanHave(Tile tile, int2 coordinates)
@@ -145,6 +148,7 @@ namespace Balma.WFC
                 var other = new State()
                 {
                     tiles = new Tile[sizeX, sizeY],
+                    emptyTiles = emptyTiles - 1,
                 };
 
                 for (int i = 0; i < sizeX; i++)
@@ -168,6 +172,7 @@ namespace Balma.WFC
             open.Enqueue(new State()
             {
                 tiles = new Tile[size.x, size.y],
+                emptyTiles = size.x * size.y,
             });
 
             while (open.Count > 0)
