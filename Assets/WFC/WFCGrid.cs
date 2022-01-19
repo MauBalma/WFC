@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using Balma.ADT;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -8,6 +10,51 @@ using Random = UnityEngine.Random;
 
 namespace Balma.WFC
 {
+    public struct TileData
+    {
+        public ConnectionData cd0;
+        public ConnectionData cd1;
+        public ConnectionData cd2;
+        public ConnectionData cd3;
+
+        public Quaternion prefabRotation;
+        public GameObject prefab;
+
+        public ConnectionData this[int index]
+        {
+            get => index switch
+            {
+                0 => cd0,
+                1 => cd1,
+                2 => cd2,
+                3 => cd3,
+                _ => throw new IndexOutOfRangeException()
+            };
+            set
+            {
+                switch (index)
+                {
+                    case 0: cd0 = value; break;
+                    case 1: cd1 = value; break;
+                    case 2: cd2 = value; break;
+                    case 3: cd3 = value; break;
+                    default: throw new IndexOutOfRangeException();
+                }
+            }
+        }
+    }
+    
+    public struct ConnectionData
+    {
+        public enum Type
+        {
+            Normal, Forward, Reverse
+        }
+            
+        public FixedString32Bytes key;
+        public Type type;
+    }
+
     public class WFCGrid : MonoBehaviour
     {
         public int2 size = 10;
@@ -15,7 +62,7 @@ namespace Balma.WFC
 
         public Tile[] tileSet;
 
-        private List<Tile> generatedTileSet = new List<Tile>();
+        private List<TileData> generatedTileSet = new List<TileData>();
 
         private List<GameObject> instanced = new List<GameObject>();
 
@@ -59,25 +106,25 @@ namespace Balma.WFC
             {
                 var z = 0;
                 tile.transform.position = new Vector3(--x, 0, z++);
-                generatedTileSet.Add(tile);
+                generatedTileSet.Add(tile.ToTileData());
 
                 var tileB = Instantiate(tile);
                 tileB.transform.position = new Vector3(x, 0, z++);
                 tileB.connections = new[] {tile.connections[1], tile.connections[2], tile.connections[3], tile.connections[0]};
                 tileB.transform.rotation = Quaternion.Euler(0,90,0);
-                generatedTileSet.Add(tileB);
+                generatedTileSet.Add(tileB.ToTileData());
 
                 var tileC = Instantiate(tile);
                 tileC.transform.position = new Vector3(x, 0, z++);
                 tileC.connections = new[] {tile.connections[2], tile.connections[3], tile.connections[0], tile.connections[1]};
                 tileC.transform.rotation = Quaternion.Euler(0,180,0);
-                generatedTileSet.Add(tileC);
+                generatedTileSet.Add(tileC.ToTileData());
 
                 var tileD = Instantiate(tile);
                 tileD.transform.position = new Vector3(x, 0, z++);
                 tileD.connections = new[] {tile.connections[3], tile.connections[0], tile.connections[1], tile.connections[2]};
                 tileD.transform.rotation = Quaternion.Euler(0,270,0);
-                generatedTileSet.Add(tileD);
+                generatedTileSet.Add(tileD.ToTileData());
             }
         }
 
@@ -88,29 +135,22 @@ namespace Balma.WFC
                 for (int j = 0; j < size.y; j++)
                 {
                     var tile = state.tiles[i, j];
-                    instanced.Add(Instantiate(tile, new Vector3(i, 0, j) * tileSize, tile.transform.rotation).gameObject);
+                    instanced.Add(Instantiate(tile.prefab, new Vector3(i, 0, j) * tileSize, tile.prefabRotation).gameObject);
                 }
             }
         }
 
         public class State
         {
-            public Tile[,] tiles;
+            public TileData[,] tiles;
             public int emptyTiles;
             
-            public bool IsComplete()//TODO Replace with a counter emptyCount and decrease it every state expansion
+            public bool IsComplete()
             {
-                // for (int i = 0; i < tiles.GetLength(0); i++)
-                // for (int j = 0; j < tiles.GetLength(1); j++)
-                //     if (tiles[i, j] == default)
-                //         return false;
-                //
-                // return true;
-
                 return emptyTiles == 0;
             }
 
-            public bool CanHave(Tile tile, int2 coordinates)
+            public bool CanHave(TileData tile, int2 coordinates)
             {
                 var sizeX = tiles.GetLength(0);
                 var sizeY = tiles.GetLength(1);
@@ -124,15 +164,15 @@ namespace Balma.WFC
                         continue;
 
                     var neighbour = tiles[otherCoordinates.x, otherCoordinates.y];
-                    if(neighbour == default) continue;
+                    if(neighbour.prefab == default) continue;
 
-                    var tileConnection = tile.connections[i % 4];
-                    var neighbourConnection = neighbour.connections[(i + 2) % 4];
+                    var tileConnection = tile[i % 4];
+                    var neighbourConnection = neighbour[(i + 2) % 4];
                     
                     if (tileConnection.key != neighbourConnection.key) 
                         return false;
                     
-                    if (tileConnection.type != Tile.Connection.Type.Normal 
+                    if (tileConnection.type != ConnectionData.Type.Normal 
                         && tileConnection.type == neighbourConnection.type) 
                         return false;
                 }
@@ -140,23 +180,23 @@ namespace Balma.WFC
                 return true;
             }
 
-            public State CopyWith(Tile tile, int2 coordinates)
+            public State CopyWith(TileData tile, int2 coordinates)
             {
                 var sizeX = tiles.GetLength(0);
                 var sizeY = tiles.GetLength(1);
                 
                 var other = new State()
                 {
-                    tiles = new Tile[sizeX, sizeY],
+                    tiles = new TileData[sizeX, sizeY],
                     emptyTiles = emptyTiles - 1,
                 };
 
                 for (int i = 0; i < sizeX; i++)
                 for (int j = 0; j < sizeY; j++)
                 {
-                    var ownKeys = tiles[i, j];
-                    if (ownKeys == default) continue;
-                    other.tiles[i, j] = ownKeys;
+                    var tileData = tiles[i, j];
+                    if (tileData.prefab == default) continue;
+                    other.tiles[i, j] = tileData;
                 }
 
                 other.tiles[coordinates.x, coordinates.y] = tile;
@@ -167,24 +207,24 @@ namespace Balma.WFC
 
         public State Generate()
         {
-            var open = new Queue<State>();
+            var open = new DecreseableMinHeapManaged<State>();
 
-            open.Enqueue(new State()
+            open.Push(new State()
             {
-                tiles = new Tile[size.x, size.y],
+                tiles = new TileData[size.x, size.y],
                 emptyTiles = size.x * size.y,
-            });
+            }, size.x * size.y);
 
             while (open.Count > 0)
             {
-                var current = open.Dequeue();
+                var current = open.Pop();
                 
                 if(current.IsComplete()) return current;
 
                 var coordinates = new int2(-1);
                 for (int i = 0; i < size.x && coordinates.x == -1; i++)
                 for (int j = 0; j < size.y && coordinates.x == -1; j++)
-                    if (current.tiles[i, j] == default)
+                    if (current.tiles[i, j].prefab == default)
                         coordinates = new int2(i, j);
 
                 Assert.IsTrue(math.all(coordinates != -1));
@@ -194,7 +234,7 @@ namespace Balma.WFC
                 foreach (var tile in generatedTileSet)
                 {
                     if (current.CanHave(tile, coordinates))
-                        open.Enqueue(current.CopyWith(tile, coordinates));
+                        open.Push(current.CopyWith(tile, coordinates), current.emptyTiles);
                 }
             }
 

@@ -169,14 +169,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   connections:
   - key: base
-    type: 0
+    connectionType: 0
   - key: base
-    type: 0
+    connectionType: 0
   - key: base
-    type: 0
+    connectionType: 0
   - key: base
-    type: 0
-  rotable: 1
+    connectionType: 0
 --- !u!1001 &433918420
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -347,14 +346,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   connections:
   - key: base
-    type: 0
+    connectionType: 0
   - key: cliff
-    type: 1
+    connectionType: 1
   - key: cliff
-    type: 1
+    connectionType: 2
   - key: base
-    type: 0
-  rotable: 1
+    connectionType: 0
 --- !u!1 &864061156
 GameObject:
   m_ObjectHideFlags: 0
@@ -516,14 +514,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   connections:
   - key: cliff
-    type: 1
+    connectionType: 1
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: cliff
-    type: 2
+    connectionType: 2
   - key: base
-    type: 0
-  rotable: 1
+    connectionType: 0
 --- !u!1 &1382064307
 GameObject:
   m_ObjectHideFlags: 0
@@ -570,14 +567,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   connections:
   - key: cliff
-    type: 1
+    connectionType: 1
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: cliff
-    type: 2
-  rotable: 1
+    connectionType: 2
 --- !u!850595691 &1407005970
 LightingSettings:
   m_ObjectHideFlags: 0
@@ -747,14 +743,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   connections:
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: base higher
-    type: 0
+    connectionType: 0
   - key: base higher
-    type: 0
-  rotable: 1
+    connectionType: 0
 --- !u!1 &1616191406
 GameObject:
   m_ObjectHideFlags: 0

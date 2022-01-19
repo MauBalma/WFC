@@ -1,4 +1,5 @@
 using System;
+using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,17 +10,11 @@ namespace Balma.WFC
         [Serializable]
         public struct Connection
         {
-            public enum Type
-            {
-                Normal, Forward, Reverse
-            }
-            
             public string key;
-            public Type type;
+            public ConnectionData.Type connectionType;
         }
     
         public Connection[] connections = new Connection[4];
-        public bool rotable = true;
         
         private void OnDrawGizmos()
         {
@@ -36,8 +31,8 @@ namespace Balma.WFC
         private void Draw(Vector3 v, Connection connection)
         {
             var type = "";
-            if (connection.type == Connection.Type.Forward) type = " ???";
-            if (connection.type == Connection.Type.Reverse) type = " !!!";
+            if (connection.connectionType == ConnectionData.Type.Forward) type = " ???";
+            if (connection.connectionType == ConnectionData.Type.Reverse) type = " !!!";
             
             Handles.Label(v, connection.key + type);
         }
@@ -45,6 +40,18 @@ namespace Balma.WFC
         private void OnValidate()
         {
             if(connections.Length != 4) connections = new Connection[4];
+        }
+
+        public TileData ToTileData()
+        {
+            var data = new TileData();
+            data.cd0 = new ConnectionData() {key = connections[0].key, type = connections[0].connectionType};
+            data.cd1 = new ConnectionData() {key = connections[1].key, type = connections[1].connectionType};
+            data.cd2 = new ConnectionData() {key = connections[2].key, type = connections[2].connectionType};
+            data.cd3 = new ConnectionData() {key = connections[3].key, type = connections[3].connectionType};
+            data.prefab = this.gameObject;
+            data.prefabRotation = this.transform.rotation;
+            return data;
         }
     }
 }
