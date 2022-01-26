@@ -24,7 +24,7 @@ namespace Balma.WFC
         public bool rotable = true;
         public Connection[] connections = new Connection[CONNECTIONS_COUNT];
 
-        private void OnDrawGizmos()
+        private void OnDrawGizmosSelected()
         {
             var v = 0.25f;
             Handles.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);

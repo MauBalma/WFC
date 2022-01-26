@@ -263,21 +263,21 @@ namespace Balma.WFC
                     for (int i = 0; i < 4; i++)
                         if (tile[i].key == TerrainType.Air) return false;
 
-                // if (coordinates.x == 0)
-                //     if (tile[2].key != TerrainType.Air || tile[3].key != TerrainType.Air)
-                //         return false;
-                //
-                // if (coordinates.x == state.tiles.GetLength(0) - 1)
-                //     if (tile[0].key != TerrainType.Air || tile[1].key != TerrainType.Air)
-                //         return false;
-                //
-                // if (coordinates.z == 0)
-                //     if (tile[0].key != TerrainType.Air || tile[3].key != TerrainType.Air)
-                //         return false;
-                //
-                // if (coordinates.z == state.tiles.GetLength(2) - 1)
-                //     if (tile[1].key != TerrainType.Air || tile[2].key != TerrainType.Air)
-                //         return false;
+                if (coordinates.y > 0 && coordinates.x == 0)
+                    if (tile[2].key != TerrainType.Air || tile[3].key != TerrainType.Air)
+                        return false;
+                
+                if (coordinates.y > 0 && coordinates.x == state.tiles.GetLength(0) - 1)
+                    if (tile[0].key != TerrainType.Air || tile[1].key != TerrainType.Air)
+                        return false;
+                
+                if (coordinates.y > 0 && coordinates.z == 0)
+                    if (tile[0].key != TerrainType.Air || tile[3].key != TerrainType.Air)
+                        return false;
+                
+                if (coordinates.y > 0 && coordinates.z == state.tiles.GetLength(2) - 1)
+                    if (tile[1].key != TerrainType.Air || tile[2].key != TerrainType.Air)
+                        return false;
 
                 return true;
             }
