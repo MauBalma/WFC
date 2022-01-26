@@ -5,50 +5,59 @@ using UnityEngine;
 
 namespace Balma.WFC
 {
+    //TODO Scriptable terrain types?
+    public enum TerrainType
+    {
+        None, Air, Grass
+    }
+
     public class Tile : MonoBehaviour
     {
+        private const int CONNECTIONS_COUNT = 8;
+        
         [Serializable]
         public struct Connection
         {
-            public string key;
-            public ConnectionData.Type connectionType;
+            public TerrainType key;
         }
-    
-        public Connection[] connections = new Connection[4];
-        
+
+        public bool rotable = true;
+        public Connection[] connections = new Connection[CONNECTIONS_COUNT];
+
         private void OnDrawGizmos()
         {
             var v = 0.25f;
-            //Handles.matrix = transform.localToWorldMatrix;
             Handles.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);
-            Draw(new Vector3(v,v,0),  connections[0]);
-            Draw(new Vector3(0,v,v),  connections[1]);
-            Draw(new Vector3(-v,v,0), connections[2]);
-            Draw(new Vector3(0,v,-v), connections[3]);
+            Draw(new Vector3(v,-v,v),   connections[0]);
+            Draw(new Vector3(-v,-v,v),  connections[1]);
+            Draw(new Vector3(-v,-v,-v), connections[2]);
+            Draw(new Vector3(v,-v,-v),  connections[3]);
+            Draw(new Vector3(v,v,v),   connections[0+4]);
+            Draw(new Vector3(-v,v,v),  connections[1+4]);
+            Draw(new Vector3(-v,v,-v), connections[2+4]);
+            Draw(new Vector3(v,v,-v),  connections[3+4]);
             Handles.matrix = Matrix4x4.identity;
+            Gizmos.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);
+            Gizmos.DrawWireCube(Vector3.zero, Vector3.one*.9f);
         }
 
         private void Draw(Vector3 v, Connection connection)
         {
-            var type = "";
-            if (connection.connectionType == ConnectionData.Type.Forward) type = " ???";
-            if (connection.connectionType == ConnectionData.Type.Reverse) type = " !!!";
-            
-            Handles.Label(v, connection.key + type);
+            Handles.Label(v, connection.key.ToString());
         }
 
         private void OnValidate()
         {
-            if(connections.Length != 4) connections = new Connection[4];
+            if(connections.Length != CONNECTIONS_COUNT) Array.Resize(ref connections, CONNECTIONS_COUNT);
         }
 
         public TileData ToTileData()
         {
             var data = new TileData();
-            data.cd0 = new ConnectionData() {key = connections[0].key, type = connections[0].connectionType};
-            data.cd1 = new ConnectionData() {key = connections[1].key, type = connections[1].connectionType};
-            data.cd2 = new ConnectionData() {key = connections[2].key, type = connections[2].connectionType};
-            data.cd3 = new ConnectionData() {key = connections[3].key, type = connections[3].connectionType};
+            for (int i = 0; i < CONNECTIONS_COUNT; i++)
+            {
+                data[i] = new ConnectionData() {key = connections[i].key};
+            }
             data.prefab = this.gameObject;
             data.prefabRotation = this.transform.rotation;
             return data;
