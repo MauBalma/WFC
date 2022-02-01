@@ -2471,9 +2471,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   size:
-    x: 7
+    x: 4
     y: 4
-    z: 6
+    z: 4
   tileSize: 1
   tileSet:
   - {fileID: 1196774984}

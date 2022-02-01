@@ -56,7 +56,7 @@ namespace Balma.WFC
             var data = new TileData();
             for (int i = 0; i < CONNECTIONS_COUNT; i++)
             {
-                data[i] = new ConnectionData() {key = connections[i].key};
+                data[i] = new TileData.ConnectionData() {key = connections[i].key};
             }
             data.prefab = this.gameObject;
             data.prefabRotation = this.transform.rotation;
