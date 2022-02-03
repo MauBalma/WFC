@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using Balma.ADT;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
@@ -12,7 +14,7 @@ namespace Balma.WFC
 {
     public class WFCGrid : MonoBehaviour
     {
-        public struct TileKey
+        private struct TileKey
         {
             public int index;
         }
@@ -21,20 +23,155 @@ namespace Balma.WFC
         public float tileSize = 1f;
         public uint seed = 69420;
         public Tile[] tileSet;
+        
+        private struct Domain
+        {
+            public int3 size;
+            public Random rng;
+            
+            public int tileCount;
+            public NativeList<int> prefabIndex;
+            public NativeList<Quaternion> prefabRotation;
+            public NativeList<WFCTileData> tileDatas;
+            
+            public DecreseableMinHeap<int3> open;
+            public NativeHashMap<int3, UnsafeList<TileKey>> possibleTiles;
+        }
+        
+        [BurstCompile]
+        private struct WFCJob : IJob
+        {
+            public Domain domain;
 
-        private int tileCount;
-        private NativeList<int> prefabIndex;
-        private NativeList<Quaternion> prefabRotation;
-        private NativeList<WFCTileData> tileDatas;
-        
-        private NativeHashMap<int3, UnsafeList<TileKey>> possibleTiles;
-        private DecreseableMinHeap<int3> open;
-        
-        private Random rng;
-        
+            public void Execute()
+            {
+                
+                InitializePossibleTiles();
+
+                while (domain.open.Count > 0)
+                {
+                    Observe(domain.open.Pop());
+                }
+            }
+            
+            private void InitializePossibleTiles()
+            {
+                domain.open.Clear();
+                
+                for (var i = 0; i < domain.size.x; i++)
+                for (var j = 0; j < domain.size.y; j++)
+                for (var k = 0; k < domain.size.z; k++)
+                {
+                    var coordinate = new int3(i, j, k);
+
+                    if (!domain.possibleTiles.TryGetValue(coordinate, out var tileList))
+                        tileList = new UnsafeList<TileKey>(domain.tileCount, Allocator.Temp);
+                    else
+                        tileList.Clear();
+
+                    for (var tileIndex = 0; tileIndex < domain.tileCount; tileIndex++)
+                    {
+                        tileList.Add(new TileKey(){index = tileIndex});
+                    }
+
+                    domain.possibleTiles[coordinate] = tileList;
+                    domain.open.Push(coordinate, domain.tileCount);
+                }
+            }
+            
+            private void Observe(int3 coordinates)
+            {
+                var possibles = domain.possibleTiles[coordinates];
+                
+                if(possibles.Length == 0) return;
+                
+                var collapsedIndex = domain.rng.NextInt(possibles.Length);
+    
+                var collapsed = possibles[collapsedIndex];
+                possibles.Clear();
+                possibles.Add(collapsed);
+    
+                domain.possibleTiles[coordinates] = possibles;
+    
+                Propagate(coordinates);
+            }
+    
+            private void Propagate(int3 coordinates, int omitIndex = -1)
+            {
+                for (int i = 0; i < NeighbourDirection.Length; i++)
+                {
+                    if(i == omitIndex) continue;
+                    
+                    var neighbourCoordinates = coordinates + NeighbourDirection[i];
+    
+                    if (neighbourCoordinates.x < 0 || neighbourCoordinates.x >= domain.size.x ||
+                        neighbourCoordinates.y < 0 || neighbourCoordinates.y >= domain.size.y ||
+                        neighbourCoordinates.z < 0 || neighbourCoordinates.z >= domain.size.z)
+                        continue;
+    
+                    FilterPossibles(i, coordinates, neighbourCoordinates);
+                }
+            }
+    
+            private void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates)
+            {
+                var possibles = domain.possibleTiles[coordinates];
+                var neighbourPossibles = domain.possibleTiles[neighbourCoordinates];
+    
+                var ownFaceIndices = OwnFaceTypes[directionIndex];
+                var neighbourFaceIndices = NeighbourFaceTypes[directionIndex];
+    
+                var changePerformed = false;
+    
+                for (var np = neighbourPossibles.Length - 1; np >= 0; np--)
+                {
+                    var neighbourPossible = neighbourPossibles[np];
+                    var neighbourFaceTypes = domain.tileDatas[neighbourPossible.index];
+                    
+                    var neighbourFace = (neighbourFaceTypes[neighbourFaceIndices[0]],
+                                         neighbourFaceTypes[neighbourFaceIndices[1]],
+                                         neighbourFaceTypes[neighbourFaceIndices[2]],
+                                         neighbourFaceTypes[neighbourFaceIndices[3]]);
+    
+                    var someMatch = false;
+                    
+                    for (var cp = possibles.Length - 1; cp >= 0; cp--)
+                    {
+                        var currentPossible = possibles[cp];
+                        var currentFaceTypes = domain.tileDatas[currentPossible.index];
+                        
+                        var currentFace = (currentFaceTypes[ownFaceIndices[0]],
+                                           currentFaceTypes[ownFaceIndices[1]],
+                                           currentFaceTypes[ownFaceIndices[2]],
+                                           currentFaceTypes[ownFaceIndices[3]]);
+    
+                        if (currentFace == neighbourFace)
+                        {
+                            someMatch = true;
+                            break;
+                        }
+                    }
+    
+                    if (!someMatch)
+                    {
+                        neighbourPossibles.RemoveAtSwapBack(np);
+                        changePerformed = true;
+                    }
+                }
+    
+                if (changePerformed)
+                {
+                    domain.possibleTiles[neighbourCoordinates] = neighbourPossibles;
+                    domain.open.Push(neighbourCoordinates, neighbourPossibles.Length);
+                    Propagate(neighbourCoordinates, ReciprocalDirection[directionIndex]);
+                }
+            }
+        }
+
+        private Domain domain;
         private List<GameObject> instanced = new List<GameObject>();
         
-        public static int3[] NeighbourDirection = new int3[]
+        public readonly static int3[] NeighbourDirection = new int3[]
         {
             new int3(1, 0,  0),
             new int3(0, 0,  1),
@@ -44,7 +181,7 @@ namespace Balma.WFC
             new int3(0, -1, 0),
         };
 
-        public static int4[] OwnFaceTypes = new int4[]
+        public readonly static int4[] OwnFaceTypes = new int4[]
         {
             new int4(3, 0, 7, 4),
             new int4(0, 1, 4, 5),
@@ -54,7 +191,7 @@ namespace Balma.WFC
             new int4(0, 1, 2, 3),
         };
 
-        public static int4[] NeighbourFaceTypes = new int4[]
+        public readonly static int4[] NeighbourFaceTypes = new int4[]
         {
             new int4(2, 1, 6, 5),
             new int4(3, 2, 7, 6),
@@ -64,7 +201,7 @@ namespace Balma.WFC
             new int4(4, 5, 6, 7),
         };
         
-        public static int[] ReciprocalDirection = new int[]
+        public readonly static int[] ReciprocalDirection = new int[]
         {
             2,
             3,
@@ -76,13 +213,18 @@ namespace Balma.WFC
 
         private void Start()
         {
-            prefabIndex = new NativeList<int>(Allocator.Persistent);
-            prefabRotation = new NativeList<Quaternion>(Allocator.Persistent);
-            tileDatas = new NativeList<WFCTileData>(Allocator.Persistent);
-            possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.Persistent);
-            open = new DecreseableMinHeap<int3>(Allocator.Persistent);
+            domain = new Domain()
+            {
+                prefabIndex = new NativeList<int>(Allocator.Persistent),
+                prefabRotation = new NativeList<Quaternion>(Allocator.Persistent),
+                tileDatas = new NativeList<WFCTileData>(Allocator.Persistent),
 
-            rng = new Random(seed);
+                rng = new Random(seed),
+                size = size,
+                
+                open = new DecreseableMinHeap<int3>(Allocator.Persistent),
+                possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.Persistent),
+            };
             
             GenerateData();
             
@@ -99,14 +241,13 @@ namespace Balma.WFC
 
         private void Generate()
         {
-            Clear();
-            InitializePossibleTiles();
-
-            while (open.Count > 0)
-            {
-                Observe(open.Pop());
-            }
+            domain.rng = new Random(domain.rng.NextUInt());//Le hack
             
+            new WFCJob()
+            {
+                domain = domain,
+            }.Run();
+
             Print();
         }
 
@@ -120,101 +261,13 @@ namespace Balma.WFC
             for (var k = 0; k < size.z; k++)
             {
                 var coordinates = new int3(i, j, k);
-                var possibles = possibleTiles[coordinates];
+                var possibles = domain.possibleTiles[coordinates];
 
                 if (possibles.Length != 1) continue;
                 
                 var tileKey = possibles[0];
-                var tile = Instantiate(tileSet[prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, prefabRotation[tileKey.index]);
+                var tile = Instantiate(tileSet[domain.prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, domain.prefabRotation[tileKey.index]);
                 instanced.Add(tile.gameObject);
-            }
-        }
-
-        private void Observe(int3 coordinates)
-        {
-            var possibles = possibleTiles[coordinates];
-            
-            if(possibles.Length == 0) return;
-            
-            var collapsedIndex = rng.NextInt(possibles.Length);
-
-            var collapsed = possibles[collapsedIndex];
-            possibles.Clear();
-            possibles.Add(collapsed);
-
-            possibleTiles[coordinates] = possibles;
-
-            Propagate(coordinates);
-        }
-
-        private void Propagate(int3 coordinates, int omitIndex = -1)
-        {
-            for (int i = 0; i < NeighbourDirection.Length; i++)
-            {
-                if(i == omitIndex) continue;
-                
-                var neighbourCoordinates = coordinates + NeighbourDirection[i];
-
-                if (neighbourCoordinates.x < 0 || neighbourCoordinates.x >= size.x ||
-                    neighbourCoordinates.y < 0 || neighbourCoordinates.y >= size.y ||
-                    neighbourCoordinates.z < 0 || neighbourCoordinates.z >= size.z)
-                    continue;
-
-                FilterPossibles(i, coordinates, neighbourCoordinates);
-            }
-        }
-
-        private void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates)
-        {
-            var possibles = possibleTiles[coordinates];
-            var neighbourPossibles = possibleTiles[neighbourCoordinates];
-
-            var ownFaceIndices = OwnFaceTypes[directionIndex];
-            var neighbourFaceIndices = NeighbourFaceTypes[directionIndex];
-
-            var changePerformed = false;
-
-            for (var np = neighbourPossibles.Length - 1; np >= 0; np--)
-            {
-                var neighbourPossible = neighbourPossibles[np];
-                var neighbourFaceTypes = tileDatas[neighbourPossible.index];
-                
-                var neighbourFace = (neighbourFaceTypes[neighbourFaceIndices[0]],
-                                     neighbourFaceTypes[neighbourFaceIndices[1]],
-                                     neighbourFaceTypes[neighbourFaceIndices[2]],
-                                     neighbourFaceTypes[neighbourFaceIndices[3]]);
-
-                var someMatch = false;
-                
-                for (var cp = possibles.Length - 1; cp >= 0; cp--)
-                {
-                    var currentPossible = possibles[cp];
-                    var currentFaceTypes = tileDatas[currentPossible.index];
-                    
-                    var currentFace = (currentFaceTypes[ownFaceIndices[0]],
-                                       currentFaceTypes[ownFaceIndices[1]],
-                                       currentFaceTypes[ownFaceIndices[2]],
-                                       currentFaceTypes[ownFaceIndices[3]]);
-
-                    if (currentFace == neighbourFace)
-                    {
-                        someMatch = true;
-                        break;
-                    }
-                }
-
-                if (!someMatch)
-                {
-                    neighbourPossibles.RemoveAtSwapBack(np);
-                    changePerformed = true;
-                }
-            }
-
-            if (changePerformed)
-            {
-                possibleTiles[neighbourCoordinates] = neighbourPossibles;
-                open.Push(neighbourCoordinates, neighbourPossibles.Length);
-                Propagate(neighbourCoordinates, ReciprocalDirection[directionIndex]);
             }
         }
 
@@ -226,9 +279,9 @@ namespace Balma.WFC
 
                 for (int i = 0; i < (tile.rotable ? 4 : 1); i++)
                 {
-                    prefabIndex.Add(originalTileIndex);
-                    prefabRotation.Add(Quaternion.Euler(0, i * 90, 0));
-                    tileDatas.Add(new WFCTileData()
+                    domain.prefabIndex.Add(originalTileIndex);
+                    domain.prefabRotation.Add(Quaternion.Euler(0, i * 90, 0));
+                    domain.tileDatas.Add(new WFCTileData()
                     {
                         [0] = tile.connections[i].key,     [1] = tile.connections[(1 + i) % 4].key,     [2] = tile.connections[(2 + i) % 4].key,     [3] = tile.connections[(3 + i) % 4].key,
                         [4] = tile.connections[i + 4].key, [5] = tile.connections[(1 + i) % 4 + 4].key, [6] = tile.connections[(2 + i) % 4 + 4].key, [7] = tile.connections[(3 + i) % 4 + 4].key,
@@ -236,53 +289,29 @@ namespace Balma.WFC
                 }
             }
 
-            tileCount = prefabIndex.Length;
-        }
-
-        private void Clear()
-        {
-            possibleTiles.Clear();
-            open.Clear();
-        }
-
-        private void InitializePossibleTiles()
-        {
-            for (var i = 0; i < size.x; i++)
-            for (var j = 0; j < size.y; j++)
-            for (var k = 0; k < size.z; k++)
-            {
-                var tileList = new UnsafeList<TileKey>(tileCount, Allocator.Persistent);
-                for (var tileIndex = 0; tileIndex < tileCount; tileIndex++)
-                {
-                    tileList.Add(new TileKey(){index = tileIndex});
-                }
-                
-                var coordinate = new int3(i, j, k);
-                possibleTiles.Add(coordinate, tileList);
-                open.Push(coordinate, tileCount);
-            }
+            domain.tileCount = domain.prefabIndex.Length;
         }
 
         private void OnDestroy()
         {
-            prefabIndex.Dispose();
-            prefabRotation.Dispose();
-            tileDatas.Dispose();
-            possibleTiles.Dispose();
-            open.Dispose();
+            domain.prefabIndex.Dispose();
+            domain.prefabRotation.Dispose();
+            domain.tileDatas.Dispose();
+            domain.possibleTiles.Dispose();
+            domain.open.Dispose();
         }
 
         private void OnDrawGizmosSelected()
         {
-            if(!possibleTiles.IsCreated) return;
+            if(!domain.possibleTiles.IsCreated) return;
             
             for (var k = 0; k < size.z; k++)
             for (var j = 0; j < size.y; j++)
             for (var i = 0; i < size.x; i++)
             {
                 var coordinate = new int3(i, j, k);
-                var count = possibleTiles[coordinate].Length;
-                var entropy = (float)count / tileCount;
+                var count = domain.possibleTiles[coordinate].Length;
+                var entropy = (float)count / domain.tileCount;
                 Gizmos.color = count == 0 ? Color.blue : count == 1 ? Color.green : Color.Lerp(Color.yellow, Color.red, entropy);
                 Gizmos.DrawSphere((float3)coordinate * tileSize, 0.1f);
             }
