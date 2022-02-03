@@ -2451,6 +2451,7 @@ GameObject:
   m_Component:
   - component: {fileID: 864061158}
   - component: {fileID: 864061157}
+  - component: {fileID: 864061159}
   m_Layer: 0
   m_Name: WFC Grid
   m_TagString: Untagged
@@ -2465,15 +2466,15 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 864061156}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 592d3aa403f3461c880af3b796289de9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   size:
-    x: 4
-    y: 4
-    z: 4
+    x: 5
+    y: 5
+    z: 5
   tileSize: 1
   tileSet:
   - {fileID: 1196774984}
@@ -2502,6 +2503,37 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &864061159
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 864061156}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5059d26f53d0bd488ac546c38904770, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  size:
+    x: 5
+    y: 5
+    z: 5
+  tileSize: 1
+  seed: 3
+  tileSet:
+  - {fileID: 1196774984}
+  - {fileID: 1048718123}
+  - {fileID: 812902440}
+  - {fileID: 1525406693}
+  - {fileID: 1492178097}
+  - {fileID: 30808930}
+  - {fileID: 1689977261}
+  - {fileID: 1048210496}
+  - {fileID: 1928368724}
+  - {fileID: 1827663889}
+  - {fileID: 1704786907}
+  - {fileID: 462073436}
 --- !u!1001 &878824909
 PrefabInstance:
   m_ObjectHideFlags: 0

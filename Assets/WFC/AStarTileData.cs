@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Balma.WFC
 {
-    public struct TileData
+    public struct AStarTileData
     {
         public ConnectionData cd0;
         public ConnectionData cd1;
@@ -77,6 +77,18 @@ namespace Balma.WFC
             {
                 return !(lhs == rhs);
             }
+        }
+        
+        public static AStarTileData GetTileData(Tile original)
+        {
+            var data = new AStarTileData();
+            for (int i = 0; i < Tile.CONNECTIONS_COUNT; i++)
+            {
+                data[i] = new AStarTileData.ConnectionData() {key = original.connections[i].key};
+            }
+            data.prefab = original.gameObject;
+            data.prefabRotation = original.transform.rotation;
+            return data;
         }
     }
 }

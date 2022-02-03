@@ -16,7 +16,7 @@ namespace Balma.WFC
 
         public Tile[] tileSet;
 
-        private List<TileData> generatedTileSet = new List<TileData>();
+        private List<AStarTileData> generatedTileSet = new List<AStarTileData>();
 
         private List<GameObject> instanced = new List<GameObject>();
 
@@ -61,7 +61,7 @@ namespace Balma.WFC
             {
                 var z = 0;
                 tile.transform.position = new Vector3(--x, 0, z++);
-                generatedTileSet.Add(tile.ToTileData());
+                generatedTileSet.Add(AStarTileData.GetTileData(tile));
 
                 if(!tile.rotable) continue;
                 
@@ -73,7 +73,7 @@ namespace Balma.WFC
                     tile.connections[4+1], tile.connections[4+2], tile.connections[4+3], tile.connections[4+0],
                 };
                 tileB.transform.rotation = Quaternion.Euler(0,90,0);
-                generatedTileSet.Add(tileB.ToTileData());
+                generatedTileSet.Add(AStarTileData.GetTileData(tileB));
 
                 var tileC = Instantiate(tile);
                 tileC.transform.position = new Vector3(x, 0, z++);
@@ -83,7 +83,7 @@ namespace Balma.WFC
                     tile.connections[4+2], tile.connections[4+3], tile.connections[4+0], tile.connections[4+1],
                 };
                 tileC.transform.rotation = Quaternion.Euler(0,180,0);
-                generatedTileSet.Add(tileC.ToTileData());
+                generatedTileSet.Add(AStarTileData.GetTileData(tileC));
 
                 var tileD = Instantiate(tile);
                 tileD.transform.position = new Vector3(x, 0, z++);
@@ -93,7 +93,7 @@ namespace Balma.WFC
                     tile.connections[4+3], tile.connections[4+0], tile.connections[4+1], tile.connections[4+2],
                 };
                 tileD.transform.rotation = Quaternion.Euler(0,270,0);
-                generatedTileSet.Add(tileD.ToTileData());
+                generatedTileSet.Add(AStarTileData.GetTileData(tileD));
             }
         }
 
@@ -116,7 +116,7 @@ namespace Balma.WFC
 
         public class AStarState
         {
-            public TileData[,,] tiles;
+            public AStarTileData[,,] tiles;
             public int emptyTiles;
             
             public bool IsComplete()
@@ -124,7 +124,7 @@ namespace Balma.WFC
                 return emptyTiles == 0;
             }
 
-            public bool CanHave(TileData tile, int3 coordinates)
+            public bool CanHave(AStarTileData tile, int3 coordinates)
             {
                 var sizeX = tiles.GetLength(0);
                 var sizeY = tiles.GetLength(1);
@@ -155,8 +155,8 @@ namespace Balma.WFC
                     var neighbour = tiles[upperCoordinates.x, upperCoordinates.y, upperCoordinates.z];
                     if (neighbour.prefab == default) return false;
 
-                    if ((neighbour[0], neighbour[1], neighbour[2], neighbour[3]) !=
-                        (tile[4 + 0], tile[4 + 1], tile[4 + 2], tile[4 + 3])) return true;
+                    if ((tile[4 + 0], tile[4 + 1], tile[4 + 2], tile[4 + 3]) !=
+                        (neighbour[0], neighbour[1], neighbour[2], neighbour[3])) return true;
 
                     return false;
                 }
@@ -186,7 +186,7 @@ namespace Balma.WFC
             }
 
             //TODO move to scriptable terrain settings?
-            private bool CheckTerrainRules(AStarState state, TileData tile, int3 coordinates)
+            private bool CheckTerrainRules(AStarState state, AStarTileData tile, int3 coordinates)
             {
                 if (coordinates.y == 0)
                     for (int i = 0; i < 4; i++)
@@ -211,7 +211,7 @@ namespace Balma.WFC
                 return true;
             }
 
-            public AStarState CopyWith(TileData tile, int3 coordinates)
+            public AStarState CopyWith(AStarTileData tile, int3 coordinates)
             {
                 var sizeX = tiles.GetLength(0);
                 var sizeY = tiles.GetLength(1);
@@ -219,7 +219,7 @@ namespace Balma.WFC
                 
                 var other = new AStarState()
                 {
-                    tiles = new TileData[sizeX, sizeY, sizeZ],
+                    tiles = new AStarTileData[sizeX, sizeY, sizeZ],
                     emptyTiles = emptyTiles - 1,
                 };
 
@@ -244,7 +244,7 @@ namespace Balma.WFC
 
             open.Push(new AStarState()
             {
-                tiles = new TileData[size.x, size.y, size.z],
+                tiles = new AStarTileData[size.x, size.y, size.z],
                 emptyTiles = size.x * size.y * size.z,
             }, size.x * size.y * size.z);
 

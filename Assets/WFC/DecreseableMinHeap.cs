@@ -285,5 +285,12 @@ namespace Balma.ADT
 			_values.Dispose();
 			_map.Dispose();
 		}
+
+		public void Clear()
+		{
+			_items.Clear();
+			_values.Clear();
+			_map.Clear();
+		}
 	}
 }

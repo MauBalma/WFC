@@ -13,7 +13,7 @@ namespace Balma.WFC
 
     public class Tile : MonoBehaviour
     {
-        private const int CONNECTIONS_COUNT = 8;
+        public const int CONNECTIONS_COUNT = 8;
         
         [Serializable]
         public struct Connection
@@ -51,17 +51,7 @@ namespace Balma.WFC
             if(connections.Length != CONNECTIONS_COUNT) Array.Resize(ref connections, CONNECTIONS_COUNT);
         }
 
-        public TileData ToTileData()
-        {
-            var data = new TileData();
-            for (int i = 0; i < CONNECTIONS_COUNT; i++)
-            {
-                data[i] = new TileData.ConnectionData() {key = connections[i].key};
-            }
-            data.prefab = this.gameObject;
-            data.prefabRotation = this.transform.rotation;
-            return data;
-        }
+        
     }
 }
 
