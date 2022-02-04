@@ -22,6 +22,7 @@ namespace Balma.WFC
         }
 
         public bool rotable = true;
+        public float weight = 1f;
         public Connection[] connections = new Connection[CONNECTIONS_COUNT];
 
         private void OnDrawGizmosSelected()
