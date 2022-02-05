@@ -16,9 +16,14 @@ namespace Balma.WFC
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
+        public bool forceSeed;
         public Tile[] tileSet;
 
+        public Tile pureAirTile;
+        public Tile grassTile;
+
         private WFCDomain domain;
+        private Dictionary<Tile, TileKey> tileKeys = new Dictionary<Tile, TileKey>();
         private List<GameObject> instanced = new List<GameObject>();
 
         private void Start()
@@ -52,14 +57,21 @@ namespace Balma.WFC
 
         private void Generate()
         {
-            domain.rng = new Random(domain.rng.NextUInt());//Le hack
+            var seed = domain.rng.NextUInt();
+            //Debug.Log(seed);
+            domain.rng = new Random(forceSeed? this.seed : seed);//Le hack
             
-            new WFCJob()
+            new WFCJob<Rules>()
             {
+                rules = new Rules()
+                {
+                    airKey = tileKeys[pureAirTile],
+                    grassKey = tileKeys[grassTile],
+                },
                 domain = domain,
             }.Run();
 
-            Print();
+            //Print();
         }
 
         private void Print()
@@ -90,6 +102,8 @@ namespace Balma.WFC
 
                 for (int i = 0; i < (tile.rotable ? 4 : 1); i++)
                 {
+                    if(i == 0) tileKeys.Add(tile, new TileKey(){index = domain.prefabIndex.Length});
+                    
                     domain.prefabIndex.Add(originalTileIndex);
                     domain.prefabRotation.Add(Quaternion.Euler(0, i * 90, 0));
                     domain.tileDatas.Add(new WFCTileData()
@@ -102,10 +116,26 @@ namespace Balma.WFC
             }
 
             domain.tileCount = domain.prefabIndex.Length;
+            
+            for (var i = 0; i < domain.size.x; i++)
+            for (var j = 0; j < domain.size.y; j++)
+            for (var k = 0; k < domain.size.z; k++)
+            {
+                var coordinate = new int3(i, j, k);
+                var tileList = new UnsafeList<TileKey>(domain.tileCount, Allocator.Persistent);
+                domain.possibleTiles[coordinate] = tileList;
+            }
         }
 
         private void OnDestroy()
         {
+            using var possiblesList = domain.possibleTiles.GetEnumerator();
+
+            while (possiblesList.MoveNext())
+            {
+                possiblesList.Current.Value.Dispose();
+            }
+            
             domain.prefabIndex.Dispose();
             domain.prefabRotation.Dispose();
             domain.tileDatas.Dispose();
@@ -172,6 +202,45 @@ namespace Balma.WFC
                     case 7: cd7 = value; break;
                     default: throw new IndexOutOfRangeException();
                 }
+            }
+        }
+    }
+
+    public struct Rules : IWFCRules
+    {
+        public TileKey airKey;
+        public TileKey grassKey;
+        
+        public void ApplyInitialConditions(ref WFCDomain domain)
+        {
+            for (int i = 0; i < domain.size.x; i++)
+            {
+                for (int j = 1; j < domain.size.y; j++)
+                {
+                    WFCJob<Rules>.Hint(new int3(i,j,0), airKey, ref domain);
+                    WFCJob<Rules>.Hint(new int3(i,j,domain.size.z - 1), airKey, ref domain);
+                }
+            }
+            
+            for (int k = 1; k < domain.size.z - 2; k++)
+            {
+                for (int j = 1; j < domain.size.y; j++)
+                {
+                    WFCJob<Rules>.Hint(new int3(0,j,k), airKey, ref domain);
+                    WFCJob<Rules>.Hint(new int3(domain.size.x - 1,j,k), airKey, ref domain);
+                }
+            }
+            
+            for (int i = 0; i < domain.size.x; i++)
+            {
+                WFCJob<Rules>.Hint(new int3(i,0,0), grassKey, ref domain);
+                WFCJob<Rules>.Hint(new int3(i,0,domain.size.z - 1), grassKey, ref domain);
+            }
+            
+            for (int k = 1; k < domain.size.z - 2; k++)
+            {
+                WFCJob<Rules>.Hint(new int3(0,0,k), grassKey, ref domain);
+                WFCJob<Rules>.Hint(new int3(domain.size.x - 1,0,k), grassKey, ref domain);
             }
         }
     }

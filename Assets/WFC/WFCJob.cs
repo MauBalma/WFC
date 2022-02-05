@@ -7,8 +7,13 @@ using Unity.Mathematics;
 
 namespace Balma.WFC
 {
+    public interface IWFCRules
+    {
+        void ApplyInitialConditions(ref WFCDomain domain);
+    }
+
     [BurstCompile]
-    public struct WFCJob : IJob
+    public struct WFCJob<TWFCRules> : IJob where TWFCRules : IWFCRules
     {
         private static readonly int3[] NeighbourDirection = new int3[]
         {
@@ -49,19 +54,21 @@ namespace Balma.WFC
             5,
             4,
         };
-            
+
+        public TWFCRules rules;
         public WFCDomain domain;
 
         public void Execute()
         {
             InitializePossibleTiles();
+            rules.ApplyInitialConditions(ref domain);
 
             while (domain.open.Count > 0)
             {
-                Observe(domain.open.Pop());
+                Observe(domain.open.Pop(), ref domain);
             }
         }
-            
+
         private void InitializePossibleTiles()
         {
             domain.open.Clear();
@@ -72,38 +79,54 @@ namespace Balma.WFC
             {
                 var coordinate = new int3(i, j, k);
 
-                if (!domain.possibleTiles.TryGetValue(coordinate, out var tileList))
-                    tileList = new UnsafeList<TileKey>(domain.tileCount, Allocator.Temp);
-                else
-                    tileList.Clear();
+                var tileList = domain.possibleTiles[coordinate];
+                tileList.Clear();
 
                 for (var tileIndex = 0; tileIndex < domain.tileCount; tileIndex++)
                 {
                     tileList.Add(new TileKey(){index = tileIndex});
                 }
 
-                domain.possibleTiles[coordinate] = tileList;
+                domain.possibleTiles[coordinate] = tileList;//Reassign, is a struct not a managed object
                 domain.open.Push(coordinate, domain.tileCount);
             }
         }
-            
-        private void Observe(int3 coordinates)
+        
+        public static void Hint(int3 coordinates, TileKey tileKey, ref WFCDomain domain)
         {
             var possibles = domain.possibleTiles[coordinates];
                 
             if(possibles.Length == 0) return;
+            if(!possibles.Contains(tileKey)) return;
 
-            var collapsed = Collapse(possibles);
+            var collapsed = tileKey;
+            
+            possibles.Clear();
+            possibles.Add(collapsed);
+    
+            domain.possibleTiles[coordinates] = possibles;
+            domain.open.Push(coordinates, -1);//
+    
+            Propagate(coordinates, ref domain);
+        }
+            
+        private static void Observe(int3 coordinates, ref WFCDomain domain)
+        {
+            var possibles = domain.possibleTiles[coordinates];
+                
+            if(possibles.Length <= 1) return;
+
+            var collapsed = Collapse(possibles, ref domain);
             
             possibles.Clear();
             possibles.Add(collapsed);
     
             domain.possibleTiles[coordinates] = possibles;
     
-            Propagate(coordinates);
+            Propagate(coordinates, ref domain);
         }
 
-        private TileKey Collapse(UnsafeList<TileKey> possibles)
+        private static TileKey Collapse(UnsafeList<TileKey> possibles, ref WFCDomain domain)
         {
             var totalWeight = 0f;
 
@@ -131,7 +154,7 @@ namespace Balma.WFC
             throw new Exception();
         }
 
-        private void Propagate(int3 coordinates, int omitIndex = -1)
+        private static void Propagate(int3 coordinates, ref WFCDomain domain, int omitIndex = -1)
         {
             for (int i = 0; i < NeighbourDirection.Length; i++)
             {
@@ -144,11 +167,11 @@ namespace Balma.WFC
                     neighbourCoordinates.z < 0 || neighbourCoordinates.z >= domain.size.z)
                     continue;
     
-                FilterPossibles(i, coordinates, neighbourCoordinates);
+                FilterPossibles(i, coordinates, neighbourCoordinates, ref domain);
             }
         }
     
-        private void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates)
+        private static void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates, ref WFCDomain domain)
         {
             var possibles = domain.possibleTiles[coordinates];
             var neighbourPossibles = domain.possibleTiles[neighbourCoordinates];
@@ -198,8 +221,10 @@ namespace Balma.WFC
             {
                 domain.possibleTiles[neighbourCoordinates] = neighbourPossibles;
                 domain.open.Push(neighbourCoordinates, neighbourPossibles.Length);
-                Propagate(neighbourCoordinates, ReciprocalDirection[directionIndex]);
+                Propagate(neighbourCoordinates, ref domain, ReciprocalDirection[directionIndex]);
             }
         }
     }
+
+    
 }
