@@ -51,8 +51,6 @@ namespace Balma.WFC
         {
             if(connections.Length != CONNECTIONS_COUNT) Array.Resize(ref connections, CONNECTIONS_COUNT);
         }
-
-        
     }
 }
 
