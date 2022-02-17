@@ -13,13 +13,24 @@ namespace Balma.WFC
         
         public enum ConnectionRotation
         {
-            Indistinct, R0, R1, R2, R3
+            Indistinct = 0,
+            R0 = 1,
+            R1 = 2,
+            R2 = 3,
+            R3 = 4
         }
         
         [Serializable]
         public struct ConnectionData
         {
             public ConnectionType type;
+            public ConnectionDirection direction;
+            public ConnectionRotation rotation;
+        }
+        
+        public struct ConnectionDataProxy
+        {
+            public int type;
             public ConnectionDirection direction;
             public ConnectionRotation rotation;
         }

@@ -15,7 +15,7 @@ namespace Balma.WFC
         public int tileCount;
         public NativeList<int> prefabIndex;
         public NativeList<Quaternion> prefabRotation;
-        public NativeList<WFCTileData> tileDatas;
+        public NativeList<WFCTileData2> tileDatas;
         public NativeList<float> tileWeight;
             
         public DecreseableMinHeap<int3> open;

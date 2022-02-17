@@ -24,26 +24,6 @@ namespace Balma.WFC
             new int3(0, 1, 0),
             new int3(0, -1, 0),
         };
-
-        private static readonly int4[] OwnFaceTypes = new int4[]
-        {
-            new int4(3, 0, 7, 4),
-            new int4(0, 1, 4, 5),
-            new int4(1, 2, 5, 6),
-            new int4(2, 3, 6, 7),
-            new int4(4, 5, 6, 7),
-            new int4(0, 1, 2, 3),
-        };
-
-        private static readonly int4[] NeighbourFaceTypes = new int4[]
-        {
-            new int4(2, 1, 6, 5),
-            new int4(3, 2, 7, 6),
-            new int4(0, 3, 4, 7),
-            new int4(1, 0, 5, 4),
-            new int4(0, 1, 2, 3),
-            new int4(4, 5, 6, 7),
-        };
         
         private static readonly int[] ReciprocalDirection = new int[]
         {
@@ -176,34 +156,23 @@ namespace Balma.WFC
             var possibles = domain.possibleTiles[coordinates];
             var neighbourPossibles = domain.possibleTiles[neighbourCoordinates];
     
-            var ownFaceIndices = OwnFaceTypes[directionIndex];
-            var neighbourFaceIndices = NeighbourFaceTypes[directionIndex];
-    
             var changePerformed = false;
     
             for (var np = neighbourPossibles.Length - 1; np >= 0; np--)
             {
                 var neighbourPossible = neighbourPossibles[np];
-                var neighbourFaceTypes = domain.tileDatas[neighbourPossible.index];
-                    
-                var neighbourFace = (neighbourFaceTypes[neighbourFaceIndices[0]],
-                    neighbourFaceTypes[neighbourFaceIndices[1]],
-                    neighbourFaceTypes[neighbourFaceIndices[2]],
-                    neighbourFaceTypes[neighbourFaceIndices[3]]);
+                var neighbourTileData = domain.tileDatas[neighbourPossible.index];
+                var neighbourConnectionData = neighbourTileData[ReciprocalDirection[directionIndex]];
     
                 var someMatch = false;
                     
                 for (var cp = possibles.Length - 1; cp >= 0; cp--)
                 {
                     var currentPossible = possibles[cp];
-                    var currentFaceTypes = domain.tileDatas[currentPossible.index];
-                        
-                    var currentFace = (currentFaceTypes[ownFaceIndices[0]],
-                        currentFaceTypes[ownFaceIndices[1]],
-                        currentFaceTypes[ownFaceIndices[2]],
-                        currentFaceTypes[ownFaceIndices[3]]);
+                    var currentTileData = domain.tileDatas[currentPossible.index];
+                    var currentConnectionData = currentTileData[directionIndex];
     
-                    if (currentFace == neighbourFace)
+                    if (CheckConnectionsMatch(currentConnectionData,neighbourConnectionData))
                     {
                         someMatch = true;
                         break;
@@ -223,6 +192,23 @@ namespace Balma.WFC
                 domain.open.Push(neighbourCoordinates, neighbourPossibles.Length);
                 Propagate(neighbourCoordinates, ref domain, ReciprocalDirection[directionIndex]);
             }
+        }
+
+        private static bool CheckConnectionsMatch(Tile2.ConnectionDataProxy current, Tile2.ConnectionDataProxy neighbour)
+        {
+            if (current.type != neighbour.type) return false;
+            if (current.rotation != neighbour.rotation) return false;
+            switch (current.direction)
+            {
+                case Tile2.ConnectionDirection.Symmetrical:
+                    return neighbour.direction == Tile2.ConnectionDirection.Symmetrical;
+                case Tile2.ConnectionDirection.Forward:
+                    return neighbour.direction == Tile2.ConnectionDirection.Backwards;
+                case Tile2.ConnectionDirection.Backwards:
+                    return neighbour.direction == Tile2.ConnectionDirection.Forward;
+            }
+
+            throw new Exception();
         }
     }
 
