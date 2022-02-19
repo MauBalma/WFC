@@ -38,6 +38,8 @@ namespace Balma.WFC
                 WFCJob<Rules>.Hint(new int3(0,0,k), grassKey, ref domain);
                 WFCJob<Rules>.Hint(new int3(domain.size.x - 1,0,k), grassKey, ref domain);
             }
+            
+            //WFCJob<Rules>.Hint(new int3(0,0,0), grassKey, ref domain);
         }
     }
 }
