@@ -68,7 +68,7 @@ namespace Balma.WFC
                 }
 
                 domain.possibleTiles[coordinate] = tileList;//Reassign, is a struct not a managed object
-                domain.open.Push(coordinate, domain.tileCount);
+                domain.open.Push(coordinate, 1);
             }
         }
         
@@ -189,7 +189,15 @@ namespace Balma.WFC
             if (changePerformed)
             {
                 domain.possibleTiles[neighbourCoordinates] = neighbourPossibles;
-                domain.open.Push(neighbourCoordinates, neighbourPossibles.Length);
+
+                var entropy = 0f;
+                for (int i = 0; i < neighbourPossibles.Length; i++)
+                {
+                    //The greater the weight, lesser the entropy
+                    entropy += 1f / domain.tileWeight[neighbourPossibles[i].index];
+                }
+                
+                domain.open.Push(neighbourCoordinates, entropy);
                 Propagate(neighbourCoordinates, ref domain, ReciprocalDirection[directionIndex]);
             }
         }

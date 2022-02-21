@@ -17,7 +17,8 @@ namespace Balma.WFC
         public float tileSize = 1f;
         public uint seed = 69420;
         public bool forceSeed;
-        public Tile2[] tileSet;
+        public List<Tile2> tileSet;
+        public MultiTile[] multiTileSet;
 
         public Tile2 pureAirTile;
         public Tile2 grassTile;
@@ -96,6 +97,8 @@ namespace Balma.WFC
 
         private void GenerateData()
         {
+            UnfoldMultiTiles();
+            
             var connectionTypeIndices = new Dictionary<ConnectionType, int>();
 
             int GetConnectionTypeIndex(ConnectionType ct)
@@ -106,7 +109,7 @@ namespace Balma.WFC
                 return connectionTypeIndices.Count - 1;
             }
 
-            for (var originalTileIndex = 0; originalTileIndex < tileSet.Length; originalTileIndex++)
+            for (var originalTileIndex = 0; originalTileIndex < tileSet.Count; originalTileIndex++)
             {
                 var tile = tileSet[originalTileIndex];
 
@@ -149,7 +152,8 @@ namespace Balma.WFC
                     }
                     
                     domain.tileDatas.Add(tileData2);
-                    domain.tileWeight.Add(tile.weight * (tile.generateRotations ? 0.25f : 1));//Compensate rotable tiles having 4 more instances
+                    var tileWeight = tile.weight * (tile.generateRotations ? 0.25f : 1);
+                    domain.tileWeight.Add(tileWeight);//Compensate rotable tiles having 4 more instances
                 }
             }
 
@@ -162,6 +166,88 @@ namespace Balma.WFC
                 var coordinate = new int3(i, j, k);
                 var tileList = new UnsafeList<TileKey>(domain.tileCount, Allocator.Persistent);
                 domain.possibleTiles[coordinate] = tileList;
+            }
+        }
+
+        private void UnfoldMultiTiles()
+        {
+            foreach (var multiTile in multiTileSet)
+            {
+                var auxMatrix = new Tile2[multiTile.size.x, multiTile.size.y, multiTile.size.z];
+
+                bool TryGetNeighbour(int x, int y, int z, out Tile2 neighbour)
+                {
+                    neighbour = default;
+                    if (x >= multiTile.size.x || y >= multiTile.size.y || z >= multiTile.size.z) return false;
+                    neighbour = auxMatrix[x, y, z];
+                    return neighbour != null;
+                }
+
+                foreach (var entry in multiTile.tiles)
+                {
+                    auxMatrix[entry.coordinates.x, entry.coordinates.y, entry.coordinates.z] = entry.tile;
+                }
+                
+                for (var k = 0; k < multiTile.size.z; k++)
+                for (var j = 0; j < multiTile.size.y; j++)
+                for (var i = 0; i < multiTile.size.x; i++)
+                {
+                    var current = auxMatrix[i, j, k];
+                    if(current == null) continue;
+
+                    if (TryGetNeighbour(i+1, j, k, out var right))
+                    {
+                        var connectionType = ScriptableObject.CreateInstance<ConnectionType>();
+                        current.connections[0] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType, 
+                            direction = Tile2.ConnectionDirection.Forward,
+                            rotation = Tile2.ConnectionRotation.Indistinct
+                        };
+                        right.connections[2] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType,
+                            direction = Tile2.ConnectionDirection.Backwards,
+                            rotation = Tile2.ConnectionRotation.Indistinct
+                        };
+                    }
+                    
+                    if (TryGetNeighbour(i, j, k+1, out var forward))
+                    {
+                        var connectionType = ScriptableObject.CreateInstance<ConnectionType>();
+                        current.connections[1] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType, 
+                            direction = Tile2.ConnectionDirection.Forward,
+                            rotation = Tile2.ConnectionRotation.Indistinct
+                        };
+                        forward.connections[3] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType,
+                            direction = Tile2.ConnectionDirection.Backwards,
+                            rotation = Tile2.ConnectionRotation.Indistinct
+                        };
+                    }
+                    
+                    if (TryGetNeighbour(i, j+1, k, out var top))
+                    {
+                        var connectionType = ScriptableObject.CreateInstance<ConnectionType>();
+                        current.connections[4] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType, 
+                            direction = Tile2.ConnectionDirection.Forward,
+                            rotation = Tile2.ConnectionRotation.R0
+                        };
+                        top.connections[5] = new Tile2.ConnectionData()
+                        {
+                            type = connectionType,
+                            direction = Tile2.ConnectionDirection.Backwards,
+                            rotation = Tile2.ConnectionRotation.R0
+                        };
+                    }
+                    
+                    tileSet.Add(current);
+                }
             }
         }
 
