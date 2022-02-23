@@ -20,6 +20,9 @@ namespace Balma.WFC
             //Backtracking,//Coming soon
             //BackJumping,//Coming soon
         }
+
+        public Transform contradictionPointer;
+        public ResolutionMode resolutionMode = ResolutionMode.MultipleTries;
         
         public int3 size = 5;
         public float tileSize = 1f;
@@ -51,6 +54,8 @@ namespace Balma.WFC
                 possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.Persistent),
                 
                 propagateStack = new NativeList<PropagateStackHelper>(Allocator.Persistent),
+                
+                contradiction = new NativeReference<int3>(-1, Allocator.Persistent)
             };
             
             GenerateData();
@@ -142,30 +147,66 @@ namespace Balma.WFC
 
         private void Generate()
         {
-            var seed = domain.rng.NextUInt();
-            Debug.Log(seed);
-            domain.rng = new Random(forceSeed? this.seed : seed);//Le hack
             
-            new WFCJob<Rules>()
+            
+            void RandomizeAndRun()
             {
-                rules = new Rules()
+                var seed = domain.rng.NextUInt();
+                Debug.Log(seed);
+                domain.rng = new Random(forceSeed ? this.seed : seed); //Le hack
+                
+                var job = new WFCJob<Rules>()
                 {
-                    airKey = tileKeys[pureAirTile],
-                    grassKey = tileKeys[grassTile],
-                },
-                domain = domain,
-                //domainStack = new UnsafeList<WFCDomain>(1024, Allocator.TempJob)
-            }.Run();
+                    rules = new Rules()
+                    {
+                        airKey = tileKeys[pureAirTile],
+                        grassKey = tileKeys[grassTile],
+                    },
+                    domain = domain,
+                };
+                
+                job.Run();
+            }
+
+            switch (resolutionMode)
+            {
+                case ResolutionMode.SingleTry:
+                    RandomizeAndRun();
+                    break;
+                case ResolutionMode.MultipleTries:
+                    var tries = 0;
+                    do
+                    {
+                        RandomizeAndRun();
+                        if (tries++ > 1000) throw new Exception("To many tries.");
+                    } while (domain.contradiction.Value.x >= 0);
+                    Debug.Log($"Tries: {tries}");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            if (domain.contradiction.Value.x >= 0)
+            {
+                contradictionPointer.gameObject.SetActive(true);
+                contradictionPointer.position = (float3)domain.contradiction.Value * tileSize;
+                
+                Debug.LogWarning($"Contradiction at {domain.contradiction.Value}");
+            }
+            else
+            {
+                contradictionPointer.gameObject.SetActive(false);
+            }
 
             Print();
         }
+
+        
 
         private void Print()
         {
             foreach (var go in instanced) Destroy(go);
             instanced.Clear();
-
-            var contradiction = false;
             
             for (var i = 0; i < size.x; i++)
             for (var j = 0; j < size.y; j++)
@@ -176,7 +217,6 @@ namespace Balma.WFC
 
                 if (possibles.Length != 1)
                 {
-                    contradiction = true;
                     continue;
                 }
                 
@@ -185,7 +225,6 @@ namespace Balma.WFC
                 instanced.Add(tile.gameObject);
             }
             
-            if(contradiction) Debug.LogWarning("CONTRADICTION");
         }
 
         
@@ -288,6 +327,7 @@ namespace Balma.WFC
             domain.possibleTiles.Dispose();
             domain.open.Dispose();
             domain.propagateStack.Dispose();
+            domain.contradiction.Dispose();
         }
 
         private void OnDrawGizmosSelected()

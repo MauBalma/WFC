@@ -21,5 +21,7 @@ namespace Balma.WFC
         public DecreseableMinHeap<int3> open;
         public NativeHashMap<int3, UnsafeList<TileKey>> possibleTiles;
         public NativeList<PropagateStackHelper> propagateStack;
+        
+        public NativeReference<int3> contradiction;
     }
 }

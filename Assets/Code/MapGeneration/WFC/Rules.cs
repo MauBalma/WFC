@@ -11,6 +11,14 @@ namespace Balma.WFC
         {
             for (int i = 0; i < domain.size.x; i++)
             {
+                for (int k = 0; k < domain.size.z; k++)
+                {
+                    WFCJob<Rules>.Hint(new int3(i,domain.size.y - 1,k), airKey, ref domain);
+                }
+            }
+            
+            for (int i = 0; i < domain.size.x; i++)
+            {
                 for (int k = 1; k < domain.size.z; k++)
                 {
                     WFCJob<Rules>.Hint(new int3(i,domain.size.y - 1,k), airKey, ref domain);
@@ -46,6 +54,14 @@ namespace Balma.WFC
                 WFCJob<Rules>.Hint(new int3(0,0,k), grassKey, ref domain);
                 WFCJob<Rules>.Hint(new int3(domain.size.x - 1,0,k), grassKey, ref domain);
             }
+            
+            // for (int i = 1; i < domain.size.x-1; i++)
+            // {
+            //     for (int k = 1; k < domain.size.z-1; k++)
+            //     {
+            //         WFCJob<Rules>.Hint(new int3(i,0,k), solidKey, ref domain);
+            //     }
+            // }
             
             //WFCJob<Rules>.Hint(new int3(0,0,0), grassKey, ref domain);
         }

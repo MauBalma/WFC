@@ -44,28 +44,24 @@ namespace Balma.WFC
 
         public TWFCRules rules;
         public WFCDomain domain;
-        //[DeallocateOnJobCompletion] public UnsafeList<WFCDomain> domainStack;
 
         public void Execute()
         {
-            InitializePossibleTiles();
+            Initialize();
             rules.ApplyInitialConditions(ref domain);
 
             while (domain.open.Count > 0)
             {
-                /*domainStack.Add*///domain.Copy().Dispose();
                 Observe(domain.open.Pop(), ref domain);
+                if(domain.contradiction.Value.x >= 0) return;//Abort
             }
-
-            // for (int i = 0; i < domainStack.Length; i++)
-            // {
-            //     domainStack[i].Dispose();
-            // }
         }
 
-        private void InitializePossibleTiles()
+        private void Initialize()
         {
             domain.open.Clear();
+            domain.propagateStack.Clear();
+            domain.contradiction.Value = -1;
                 
             for (var i = 0; i < domain.size.x; i++)
             for (var j = 0; j < domain.size.y; j++)
@@ -129,6 +125,7 @@ namespace Balma.WFC
                 var entry = domain.propagateStack[domain.propagateStack.Length - 1];
                 domain.propagateStack.RemoveAtSwapBack(domain.propagateStack.Length - 1);
                 Propagate(entry.coordinates, ref domain, entry.omitIndex);
+                if(domain.contradiction.Value.x >= 0) return;//Abort
             }
         }
 
@@ -174,6 +171,8 @@ namespace Balma.WFC
                     continue;
     
                 FilterPossibles(i, coordinates, neighbourCoordinates, ref domain);
+                
+                if(domain.contradiction.Value.x >= 0) return;//Abort
             }
             
             void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates, ref WFCDomain domain)
@@ -211,6 +210,12 @@ namespace Balma.WFC
                     {
                         neighbourPossibles.RemoveAtSwapBack(np);
                         changePerformed = true;
+
+                        // if (neighbourPossibles.IsEmpty)
+                        // {
+                        //     domain.contradiction.Value = neighbourCoordinates;//Abort
+                        //     return;
+                        // }
                     }
                 }
         
