@@ -13,6 +13,14 @@ namespace Balma.WFC
 {
     public class WFCGrid : MonoBehaviour
     {
+        public enum ResolutionMode
+        {
+            SingleTry,
+            MultipleTries,
+            //Backtracking,//Coming soon
+            //BackJumping,//Coming soon
+        }
+        
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
@@ -41,60 +49,15 @@ namespace Balma.WFC
                 
                 open = new DecreseableMinHeap<int3>(Allocator.Persistent),
                 possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.Persistent),
+                
+                propagateStack = new NativeList<PropagateStackHelper>(Allocator.Persistent),
             };
             
             GenerateData();
             
             Generate();
         }
-
-        private void Update()
-        {
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                Generate();
-            }
-        }
-
-        private void Generate()
-        {
-            var seed = domain.rng.NextUInt();
-            Debug.Log(seed);
-            domain.rng = new Random(forceSeed? this.seed : seed);//Le hack
-            
-            new WFCJob<Rules>()
-            {
-                rules = new Rules()
-                {
-                    airKey = tileKeys[pureAirTile],
-                    grassKey = tileKeys[grassTile],
-                },
-                domain = domain,
-            }.Run();
-
-            Print();
-        }
-
-        private void Print()
-        {
-            foreach (var go in instanced) Destroy(go);
-            instanced.Clear();
-            
-            for (var i = 0; i < size.x; i++)
-            for (var j = 0; j < size.y; j++)
-            for (var k = 0; k < size.z; k++)
-            {
-                var coordinates = new int3(i, j, k);
-                var possibles = domain.possibleTiles[coordinates];
-
-                if (possibles.Length != 1) continue;
-                
-                var tileKey = possibles[0];
-                var tile = Instantiate(tileSet[domain.prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, domain.prefabRotation[tileKey.index]);
-                instanced.Add(tile.gameObject);
-            }
-        }
-
+        
         private void GenerateData()
         {
             UnfoldMultiTiles();
@@ -168,6 +131,64 @@ namespace Balma.WFC
                 domain.possibleTiles[coordinate] = tileList;
             }
         }
+
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                Generate();
+            }
+        }
+
+        private void Generate()
+        {
+            var seed = domain.rng.NextUInt();
+            Debug.Log(seed);
+            domain.rng = new Random(forceSeed? this.seed : seed);//Le hack
+            
+            new WFCJob<Rules>()
+            {
+                rules = new Rules()
+                {
+                    airKey = tileKeys[pureAirTile],
+                    grassKey = tileKeys[grassTile],
+                },
+                domain = domain,
+                //domainStack = new UnsafeList<WFCDomain>(1024, Allocator.TempJob)
+            }.Run();
+
+            Print();
+        }
+
+        private void Print()
+        {
+            foreach (var go in instanced) Destroy(go);
+            instanced.Clear();
+
+            var contradiction = false;
+            
+            for (var i = 0; i < size.x; i++)
+            for (var j = 0; j < size.y; j++)
+            for (var k = 0; k < size.z; k++)
+            {
+                var coordinates = new int3(i, j, k);
+                var possibles = domain.possibleTiles[coordinates];
+
+                if (possibles.Length != 1)
+                {
+                    contradiction = true;
+                    continue;
+                }
+                
+                var tileKey = possibles[0];
+                var tile = Instantiate(tileSet[domain.prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, domain.prefabRotation[tileKey.index]);
+                instanced.Add(tile.gameObject);
+            }
+            
+            if(contradiction) Debug.LogWarning("CONTRADICTION");
+        }
+
+        
 
         private void UnfoldMultiTiles()
         {
@@ -266,6 +287,7 @@ namespace Balma.WFC
             domain.tileWeight.Dispose();
             domain.possibleTiles.Dispose();
             domain.open.Dispose();
+            domain.propagateStack.Dispose();
         }
 
         private void OnDrawGizmosSelected()

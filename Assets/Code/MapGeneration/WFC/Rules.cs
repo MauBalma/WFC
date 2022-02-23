@@ -11,7 +11,15 @@ namespace Balma.WFC
         {
             for (int i = 0; i < domain.size.x; i++)
             {
-                for (int j = 1; j < domain.size.y; j++)
+                for (int k = 1; k < domain.size.z; k++)
+                {
+                    WFCJob<Rules>.Hint(new int3(i,domain.size.y - 1,k), airKey, ref domain);
+                }
+            }
+
+            for (int i = 0; i < domain.size.x; i++)
+            {
+                for (int j = 1; j < domain.size.y - 1; j++)
                 {
                     WFCJob<Rules>.Hint(new int3(i,j,0), airKey, ref domain);
                     WFCJob<Rules>.Hint(new int3(i,j,domain.size.z - 1), airKey, ref domain);
@@ -20,7 +28,7 @@ namespace Balma.WFC
             
             for (int k = 1; k < domain.size.z - 1; k++)
             {
-                for (int j = 1; j < domain.size.y; j++)
+                for (int j = 1; j < domain.size.y - 1; j++)
                 {
                     WFCJob<Rules>.Hint(new int3(0,j,k), airKey, ref domain);
                     WFCJob<Rules>.Hint(new int3(domain.size.x - 1,j,k), airKey, ref domain);
