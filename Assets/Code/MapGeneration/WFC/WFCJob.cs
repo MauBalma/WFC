@@ -211,11 +211,11 @@ namespace Balma.WFC
                         neighbourPossibles.RemoveAtSwapBack(np);
                         changePerformed = true;
 
-                        // if (neighbourPossibles.IsEmpty)
-                        // {
-                        //     domain.contradiction.Value = neighbourCoordinates;//Abort
-                        //     return;
-                        // }
+                        if (neighbourPossibles.IsEmpty)
+                        {
+                            domain.contradiction.Value = neighbourCoordinates;//Abort
+                            return;
+                        }
                     }
                 }
         

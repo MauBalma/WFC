@@ -201,8 +201,6 @@ namespace Balma.WFC
             Print();
         }
 
-        
-
         private void Print()
         {
             foreach (var go in instanced) Destroy(go);
