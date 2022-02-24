@@ -10,7 +10,7 @@ namespace Balma.WFC
 {
     public interface IWFCRules
     {
-        void ApplyInitialConditions(ref WFCDomain domain);
+        void ApplyInitialConditions<T>(ref WFCJob<T>.Data data, ref NativeList<PropagateStackHelper> propagateStack) where T : IWFCRules;
     }
     
     public struct PropagateStackHelper
@@ -41,123 +41,136 @@ namespace Balma.WFC
             5,
             4,
         };
+        
+        public struct Data
+        {
+            public WFCDomain staticDomain;
+
+            public void Hint(int3 coordinates, TileKey tileKey, ref NativeList<PropagateStackHelper> propagateStack)
+            {
+                var possibles = staticDomain.possibleTiles[coordinates];
+                
+                if(possibles.Length == 0) return;
+                if(!possibles.Contains(tileKey)) return;
+
+                var collapsed = tileKey;
+            
+                possibles.Clear();
+                possibles.Add(collapsed);
+    
+                staticDomain.possibleTiles[coordinates] = possibles;
+                staticDomain.open.Push(coordinates, -1);//
+    
+                propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
+                Propagate(ref this, ref propagateStack);
+            }
+        }
 
         public TWFCRules rules;
-        public WFCDomain domain;
+        public Data data;
+        public NativeList<PropagateStackHelper> propagateStack;
+
+        public WFCJob(TWFCRules rules, WFCDomain staticDomain, NativeList<PropagateStackHelper> propagateStack)
+        {
+            this.rules = rules;
+            data.staticDomain = staticDomain;
+            this.propagateStack = propagateStack;
+        }
 
         public void Execute()
         {
             Initialize();
-            rules.ApplyInitialConditions(ref domain);
+            rules.ApplyInitialConditions(ref data, ref propagateStack);
 
-            while (domain.open.Count > 0)
+            while (data.staticDomain.open.Count > 0)
             {
-                Observe(domain.open.Pop(), ref domain);
-                if(domain.contradiction.Value.x >= 0) return;//Abort
+                Observe(data.staticDomain.open.Pop(), ref data, ref propagateStack);
+                if(data.staticDomain.contradiction.Value.x >= 0) return;//Abort
             }
         }
 
         private void Initialize()
         {
-            domain.open.Clear();
-            domain.propagateStack.Clear();
-            domain.contradiction.Value = -1;
+            data.staticDomain.contradiction.Value = -1;
                 
-            for (var i = 0; i < domain.size.x; i++)
-            for (var j = 0; j < domain.size.y; j++)
-            for (var k = 0; k < domain.size.z; k++)
+            for (var i = 0; i < data.staticDomain.size.x; i++)
+            for (var j = 0; j < data.staticDomain.size.y; j++)
+            for (var k = 0; k < data.staticDomain.size.z; k++)
             {
                 var coordinate = new int3(i, j, k);
 
-                var tileList = domain.possibleTiles[coordinate];
+                var tileList = data.staticDomain.possibleTiles[coordinate];
                 tileList.Clear();
 
-                for (var tileIndex = 0; tileIndex < domain.tileCount; tileIndex++)
+                for (var tileIndex = 0; tileIndex < data.staticDomain.tileCount; tileIndex++)
                 {
                     tileList.Add(new TileKey(){index = tileIndex});
                 }
 
-                domain.possibleTiles[coordinate] = tileList;//Reassign, is a struct not a managed object
-                domain.open.Push(coordinate, 1);
+                data.staticDomain.possibleTiles[coordinate] = tileList;//Reassign, is a struct not a managed object
+                data.staticDomain.open.Push(coordinate, 1);
             }
         }
         
-        public static void Hint(int3 coordinates, TileKey tileKey, ref WFCDomain domain)
-        {
-            var possibles = domain.possibleTiles[coordinates];
-                
-            if(possibles.Length == 0) return;
-            if(!possibles.Contains(tileKey)) return;
-
-            var collapsed = tileKey;
+        
             
-            possibles.Clear();
-            possibles.Add(collapsed);
-    
-            domain.possibleTiles[coordinates] = possibles;
-            domain.open.Push(coordinates, -1);//
-    
-            domain.propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
-            Propagate(ref domain);
-        }
-            
-        private static void Observe(int3 coordinates, ref WFCDomain domain)
+        private static void Observe(int3 coordinates, ref Data data, ref NativeList<PropagateStackHelper> propagateStack)
         {
-            var possibles = domain.possibleTiles[coordinates];
+            var possibles = data.staticDomain.possibleTiles[coordinates];
                 
             if(possibles.Length <= 1) return;
 
-            var collapsed = Collapse(possibles, ref domain);
+            var collapsed = Collapse(possibles, ref data);
             
             possibles.Clear();
             possibles.Add(collapsed);
     
-            domain.possibleTiles[coordinates] = possibles;
+            data.staticDomain.possibleTiles[coordinates] = possibles;
             
-            domain.propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
-            Propagate(ref domain);
+            propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
+            Propagate(ref data, ref propagateStack);
         }
 
-        private static void Propagate(ref WFCDomain domain)
+        private static void Propagate(ref Data data, ref NativeList<PropagateStackHelper> propagateStack)
         {
-            while (!domain.propagateStack.IsEmpty)
+            while (!propagateStack.IsEmpty)
             {
-                var entry = domain.propagateStack[domain.propagateStack.Length - 1];
-                domain.propagateStack.RemoveAtSwapBack(domain.propagateStack.Length - 1);
-                Propagate(entry.coordinates, ref domain, entry.omitIndex);
-                if(domain.contradiction.Value.x >= 0) return;//Abort
+                var entry = propagateStack[propagateStack.Length - 1];
+                propagateStack.RemoveAtSwapBack(propagateStack.Length - 1);
+                Propagate(entry.coordinates, ref data, ref propagateStack, entry.omitIndex);
+                if(data.staticDomain.contradiction.Value.x >= 0) return;//Abort
             }
         }
 
-        private static TileKey Collapse(UnsafeList<TileKey> possibles, ref WFCDomain domain)
+        private static TileKey Collapse(UnsafeList<TileKey> possibles, ref Data data)
         {
             var totalWeight = 0f;
 
             for (var index = 0; index < possibles.Length; index++)
             {
                 var possible = possibles[index];
-                totalWeight += domain.tileWeight[possible.index];
+                totalWeight += data.staticDomain.tileWeight[possible.index];
             }
 
-            var value = domain.rng.NextFloat(totalWeight);
+            var value = data.staticDomain.rng.NextFloat(totalWeight);
             var accWeight = 0f;
 
             for (var index = 0; index < possibles.Length; index++)
             {
                 var possible = possibles[index];
 
-                if (value >= accWeight && value < accWeight + domain.tileWeight[possible.index])
+                if (value >= accWeight && value < accWeight + data.staticDomain.tileWeight[possible.index])
                 {
                     return possible;
                 }
 
-                accWeight += domain.tileWeight[possible.index];
+                accWeight += data.staticDomain.tileWeight[possible.index];
             }
 
             throw new Exception();
         }
 
-        private static void Propagate(int3 coordinates, ref WFCDomain domain, int omitIndex = -1)
+        private static void Propagate(int3 coordinates, ref Data data, ref NativeList<PropagateStackHelper> propagateStack, int omitIndex = -1)
         {
             for (int i = 0; i < NeighbourDirection.Length; i++)
             {
@@ -165,30 +178,30 @@ namespace Balma.WFC
                     
                 var neighbourCoordinates = coordinates + NeighbourDirection[i];
     
-                if (neighbourCoordinates.x < 0 || neighbourCoordinates.x >= domain.size.x ||
-                    neighbourCoordinates.y < 0 || neighbourCoordinates.y >= domain.size.y ||
-                    neighbourCoordinates.z < 0 || neighbourCoordinates.z >= domain.size.z)
+                if (neighbourCoordinates.x < 0 || neighbourCoordinates.x >= data.staticDomain.size.x ||
+                    neighbourCoordinates.y < 0 || neighbourCoordinates.y >= data.staticDomain.size.y ||
+                    neighbourCoordinates.z < 0 || neighbourCoordinates.z >= data.staticDomain.size.z)
                     continue;
     
-                FilterPossibles(i, coordinates, neighbourCoordinates, ref domain);
+                FilterPossibles(i, coordinates, neighbourCoordinates, ref data, ref propagateStack);
                 
-                if(domain.contradiction.Value.x >= 0) return;//Abort
+                if(data.staticDomain.contradiction.Value.x >= 0) return;//Abort
             }
             
-            void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates, ref WFCDomain domain)
+            void FilterPossibles(int directionIndex, int3 coordinates, int3 neighbourCoordinates, ref Data data, ref NativeList<PropagateStackHelper> propagateStack)
             {
-                var possibles = domain.possibleTiles[coordinates];
+                var possibles = data.staticDomain.possibleTiles[coordinates];
                 
                 if(possibles.Length == 0) return;
                 
-                var neighbourPossibles = domain.possibleTiles[neighbourCoordinates];
+                var neighbourPossibles = data.staticDomain.possibleTiles[neighbourCoordinates];
         
                 var changePerformed = false;
         
                 for (var np = neighbourPossibles.Length - 1; np >= 0; np--)
                 {
                     var neighbourPossible = neighbourPossibles[np];
-                    var neighbourTileData = domain.tileDatas[neighbourPossible.index];
+                    var neighbourTileData = data.staticDomain.tileDatas[neighbourPossible.index];
                     var neighbourConnectionData = neighbourTileData[ReciprocalDirection[directionIndex]];
         
                     var someMatch = false;
@@ -196,7 +209,7 @@ namespace Balma.WFC
                     for (var cp = possibles.Length - 1; cp >= 0; cp--)
                     {
                         var currentPossible = possibles[cp];
-                        var currentTileData = domain.tileDatas[currentPossible.index];
+                        var currentTileData = data.staticDomain.tileDatas[currentPossible.index];
                         var currentConnectionData = currentTileData[directionIndex];
         
                         if (CheckConnectionsMatch(currentConnectionData,neighbourConnectionData))
@@ -213,7 +226,7 @@ namespace Balma.WFC
 
                         if (neighbourPossibles.IsEmpty)
                         {
-                            domain.contradiction.Value = neighbourCoordinates;//Abort
+                            data.staticDomain.contradiction.Value = neighbourCoordinates;//Abort
                             return;
                         }
                     }
@@ -221,17 +234,17 @@ namespace Balma.WFC
         
                 if (changePerformed)
                 {
-                    domain.possibleTiles[neighbourCoordinates] = neighbourPossibles;
+                    data.staticDomain.possibleTiles[neighbourCoordinates] = neighbourPossibles;
     
                     var entropy = 0f;
                     for (int i = 0; i < neighbourPossibles.Length; i++)
                     {
                         //The greater the weight, lesser the entropy
-                        entropy += 1f / domain.tileWeight[neighbourPossibles[i].index];
+                        entropy += 1f / data.staticDomain.tileWeight[neighbourPossibles[i].index];
                     }
                     
-                    domain.open.Push(neighbourCoordinates, entropy);
-                    domain.propagateStack.Add(new PropagateStackHelper(){coordinates = neighbourCoordinates, omitIndex = ReciprocalDirection[directionIndex]});
+                    data.staticDomain.open.Push(neighbourCoordinates, entropy);
+                    propagateStack.Add(new PropagateStackHelper(){coordinates = neighbourCoordinates, omitIndex = ReciprocalDirection[directionIndex]});
                 }
             }
         }
