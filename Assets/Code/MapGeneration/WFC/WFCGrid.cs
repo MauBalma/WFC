@@ -17,7 +17,7 @@ namespace Balma.WFC
         {
             SingleTry,
             MultipleTries,
-            //Backtracking,//Coming soon
+            Backtracking,
             //BackJumping,//Coming soon
         }
 
@@ -27,7 +27,6 @@ namespace Balma.WFC
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
-        public bool forceSeed;
         public List<Tile> tileSet;
         public MultiTile[] multiTileSet;
 
@@ -147,6 +146,9 @@ namespace Balma.WFC
                 case ResolutionMode.MultipleTries:
                     RunMultipleTries();
                     break;
+                case ResolutionMode.Backtracking:
+                    RunBacktracking();
+                    break;
             }
         }
 
@@ -168,6 +170,8 @@ namespace Balma.WFC
         {
             var domain = GetCleanDomain();
             var tries = 0;
+            
+            
 
             do
             {
@@ -186,6 +190,32 @@ namespace Balma.WFC
 
             Print(domain.possibleTiles);
             domain.Dispose();
+        }
+
+        private void RunBacktracking()
+        {
+            
+            var domain = GetCleanDomain();
+            var tries = 0;
+
+            do
+            {
+                if (tries++ > 1000)
+                {
+                    Debug.LogWarning("Cannot resolve in 1000 iterations.");
+                    domain.Dispose();
+                    return;
+                }
+                
+                var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
+                job.Run();
+                seed = domain.rng.NextUInt();
+            }
+            while (domain.contradiction.Value);
+
+            Print(domain.possibleTiles);
+            domain.Dispose();
+            
         }
 
         private WFCDomain GetCleanDomain()

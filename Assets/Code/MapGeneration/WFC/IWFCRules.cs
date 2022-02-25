@@ -2,6 +2,6 @@
 {
     public interface IWFCRules
     {
-        void ApplyInitialConditions<T>(ref WFCJob<T>.Data data) where T : IWFCRules;
+        void ApplyInitialConditions(ref WFCData data);
     }
 }
