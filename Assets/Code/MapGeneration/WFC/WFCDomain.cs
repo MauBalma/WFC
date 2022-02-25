@@ -7,19 +7,22 @@ using Random = Unity.Mathematics.Random;
 
 namespace Balma.WFC
 {
+    public struct WFCStaticDomain
+    {
+        public int3 size;
+        public int tileCount;
+
+        public NativeList<WFCTileData> tileDatas;
+        public NativeList<float> tileWeight;
+    }
+
     public struct WFCDomain
     {
-        public int3 size;//TODO move to static domain
-        public int tileCount;//TODO move to static domain
-
-        public NativeList<WFCTileData2> tileDatas;//TODO move to static domain
-        public NativeList<float> tileWeight;//TODO move to static domain
-
         public Random rng;
         public NativeHashMap<int3, UnsafeList<TileKey>> possibleTiles;
         public DecreseableMinHeap<int3> open;
-        public NativeReference<int3> contradiction;
+        public NativeReference<bool> contradiction;
+        public NativeList<PropagateStackHelper> propagateStack;
     }
-    
-    
+
 }
