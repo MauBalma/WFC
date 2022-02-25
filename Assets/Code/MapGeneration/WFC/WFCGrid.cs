@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Balma.ADT;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -54,7 +55,6 @@ namespace Balma.WFC
             };
             
             GenerateData();
-            
             Generate();
         }
         
@@ -139,55 +139,64 @@ namespace Balma.WFC
 
         private void Generate()
         {
-            // void RandomizeAndRun()
-            // {
-            //     //var seed = staticDomain.rng.NextUInt();
-            //     //Debug.Log(seed);
-            //     //staticDomain.rng = new Random(forceSeed ? this.seed : seed); //Le hack
-            //
-            //     
-            //
-            //     job.Run();
-            //     job.propagateStack.Dispose();
-            // }
-            //
-            // switch (resolutionMode)
-            // {
-            //     case ResolutionMode.SingleTry:
-            //         RandomizeAndRun();
-            //         break;
-                //case ResolutionMode.MultipleTries:
-                //    var tries = 0;
-                //    do
-                //    {
-                //        RandomizeAndRun();
-                //        if (tries++ > 1000) throw new Exception("To many tries.");
-                //    } while (staticDomain.contradiction.Value.x >= 0);
-                //    Debug.Log($"Tries: {tries}");
-                //    break;
-                //default:
-                //    throw new ArgumentOutOfRangeException();
-            //}
+            switch (resolutionMode)
+            {
+                case ResolutionMode.SingleTry:
+                    RunSingleTry();
+                    break;
+                case ResolutionMode.MultipleTries:
+                    RunMultipleTries();
+                    break;
+            }
+        }
 
-            // if (staticDomain.contradiction.Value.x >= 0)
-            // {
-            //     contradictionPointer.gameObject.SetActive(true);
-            //     contradictionPointer.position = (float3)staticDomain.contradiction.Value * tileSize;
-            //     
-            //     Debug.LogWarning($"Contradiction at {staticDomain.contradiction.Value}");
-            // }
-            // else
-            // {
-            //     contradictionPointer.gameObject.SetActive(false);
-            // }
+        private void RunSingleTry()
+        {
+            var domain = GetCleanDomain();
 
+            var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
+            job.Run();
+
+            Print(domain.possibleTiles);
+
+            domain.Dispose();
+
+            seed = domain.rng.NextUInt();
+        }
+        
+        private void RunMultipleTries()
+        {
+            var domain = GetCleanDomain();
+            var tries = 0;
+
+            do
+            {
+                if (tries++ > 1000)
+                {
+                    Debug.LogWarning("Cannot resolve in 1000 iterations.");
+                    domain.Dispose();
+                    return;
+                }
+                
+                var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
+                job.Run();
+                seed = domain.rng.NextUInt();
+            }
+            while (domain.contradiction.Value);
+
+            Print(domain.possibleTiles);
+            domain.Dispose();
+        }
+
+        private WFCDomain GetCleanDomain()
+        {
             var domain = new WFCDomain()
             {
                 rng = new Random(seed),
                 possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.TempJob),
                 open = new DecreseableMinHeap<int3>(Allocator.TempJob),
                 contradiction = new NativeReference<bool>(false, Allocator.TempJob),
-                propagateStack = new NativeList<PropagateStackHelper>(Allocator.TempJob),
+                propagateStack = new NativeList<WFCPropagateStackHelper>(Allocator.TempJob),
             };
             
             for (var i = 0; i < staticDomain.size.x; i++)
@@ -198,23 +207,8 @@ namespace Balma.WFC
                 var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, Allocator.TempJob);
                 domain.possibleTiles[coordinate] = tileList;
             }
-
-            var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
-            job.Run();
-
-            Print(domain.possibleTiles);
             
-            using var possiblesList = domain.possibleTiles.GetEnumerator();
-            while (possiblesList.MoveNext())
-            {
-                possiblesList.Current.Value.Dispose();
-            }
-            domain.possibleTiles.Dispose();
-            domain.open.Dispose();
-            domain.contradiction.Dispose();
-            domain.propagateStack.Dispose();
-
-            seed = domain.rng.NextUInt();
+            return domain;
         }
 
         private void Print(NativeHashMap<int3, UnsafeList<TileKey>> result)
@@ -238,7 +232,6 @@ namespace Balma.WFC
                 var tile = Instantiate(tileSet[prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, prefabRotation[tileKey.index]);
                 instanced.Add(tile.gameObject);
             }
-            
         }
 
         private void UnfoldMultiTiles()
@@ -327,24 +320,7 @@ namespace Balma.WFC
         {
             prefabIndex.Dispose();
             prefabRotation.Dispose();
-            staticDomain.tileDatas.Dispose();
-            staticDomain.tileWeight.Dispose();
+            staticDomain.Dispose();
         }
-
-    //     private void OnDrawGizmosSelected()
-    //     {
-    //         if(!staticDomain.possibleTiles.IsCreated) return;
-    //         
-    //         for (var k = 0; k < size.z; k++)
-    //         for (var j = 0; j < size.y; j++)
-    //         for (var i = 0; i < size.x; i++)
-    //         {
-    //             var coordinate = new int3(i, j, k);
-    //             var count = staticDomain.possibleTiles[coordinate].Length;
-    //             var entropy = (float)count / staticDomain.tileCount;
-    //             Gizmos.color = count == 0 ? Color.blue : count == 1 ? Color.green : Color.Lerp(Color.yellow, Color.red, entropy);
-    //             Gizmos.DrawSphere((float3)coordinate * tileSize, 0.1f);
-    //         }
-    //     }
     }
 }

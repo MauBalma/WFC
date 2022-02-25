@@ -1,28 +1,18 @@
 ﻿using System;
 using Unity.Burst;
-using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine.Assertions;
+
+// ReSharper disable Unity.BurstLoadingManagedType
+// ReSharper disable StaticMemberInGenericType
 
 namespace Balma.WFC
 {
-    public interface IWFCRules
-    {
-        void ApplyInitialConditions<T>(ref WFCJob<T>.Data data) where T : IWFCRules;
-    }
-    
-    public struct PropagateStackHelper
-    {
-        public int3 coordinates;
-        public int omitIndex;
-    }
-
     [BurstCompile]
     public struct WFCJob<TWFCRules> : IJob where TWFCRules : IWFCRules
     {
-        private static readonly int3[] NeighbourDirection = new int3[]
+        private static readonly int3[] NeighbourDirection = new[]
         {
             new int3(1, 0,  0),
             new int3(0, 0,  1),
@@ -32,7 +22,7 @@ namespace Balma.WFC
             new int3(0, -1, 0),
         };
         
-        private static readonly int[] ReciprocalDirection = new int[]
+        private static readonly int[] ReciprocalDirection = new[]
         {
             2, 3, 0, 1, 5, 4,
         };
@@ -57,7 +47,7 @@ namespace Balma.WFC
                 domain.possibleTiles[coordinates] = possibles;
                 domain.open.Push(coordinates, -1);//
     
-                data.domain.propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
+                data.domain.propagateStack.Add(new WFCPropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
                 Propagate(ref this);
             }
         }
@@ -88,6 +78,8 @@ namespace Balma.WFC
         {
             data.domain.contradiction.Value = false;
             data.domain.open.Clear();
+            data.domain.propagateStack.Clear();
+            
             for (var i = 0; i < data.staticDomain.size.x; i++)
             for (var j = 0; j < data.staticDomain.size.y; j++)
             for (var k = 0; k < data.staticDomain.size.z; k++)
@@ -102,7 +94,7 @@ namespace Balma.WFC
                     possible.Add(new TileKey(){index = tileIndex});
                 }
 
-                data.domain.possibleTiles[coordinate] = possible;//Reassign, is a struct not a managed object
+                data.domain.possibleTiles[coordinate] = possible;//Reassign, is a struct not a reference
                 data.domain.open.Push(coordinate, 1);
             }
         }
@@ -120,7 +112,7 @@ namespace Balma.WFC
     
             data.domain.possibleTiles[coordinates] = possibles;
             
-            data.domain.propagateStack.Add(new PropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
+            data.domain.propagateStack.Add(new WFCPropagateStackHelper(){coordinates = coordinates, omitIndex = -1});
             Propagate(ref data);
         }
 
@@ -237,7 +229,7 @@ namespace Balma.WFC
                     }
                     
                     data.domain.open.Push(neighbourCoordinates, entropy);
-                    data.domain.propagateStack.Add(new PropagateStackHelper(){coordinates = neighbourCoordinates, omitIndex = ReciprocalDirection[directionIndex]});
+                    data.domain.propagateStack.Add(new WFCPropagateStackHelper(){coordinates = neighbourCoordinates, omitIndex = ReciprocalDirection[directionIndex]});
                 }
             }
         }
@@ -246,17 +238,14 @@ namespace Balma.WFC
         {
             if (current.type != neighbour.type) return false;
             if (current.rotation != neighbour.rotation) return false;
-            switch (current.direction)
-            {
-                case Tile.ConnectionDirection.Symmetrical:
-                    return neighbour.direction == Tile.ConnectionDirection.Symmetrical;
-                case Tile.ConnectionDirection.Forward:
-                    return neighbour.direction == Tile.ConnectionDirection.Backwards;
-                case Tile.ConnectionDirection.Backwards:
-                    return neighbour.direction == Tile.ConnectionDirection.Forward;
-            }
 
-            throw new Exception();
+            return current.direction switch
+            {
+                Tile.ConnectionDirection.Symmetrical => neighbour.direction == Tile.ConnectionDirection.Symmetrical,
+                Tile.ConnectionDirection.Forward => neighbour.direction == Tile.ConnectionDirection.Backwards,
+                Tile.ConnectionDirection.Backwards => neighbour.direction == Tile.ConnectionDirection.Forward,
+                _ => throw new Exception()
+            };
         }
     }
 
