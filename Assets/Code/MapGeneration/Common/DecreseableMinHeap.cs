@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Mathematics;
 
 namespace Balma.ADT
 {
@@ -291,6 +292,26 @@ namespace Balma.ADT
 			_items.Clear();
 			_values.Clear();
 			_map.Clear();
+		}
+
+		public DecreseableMinHeap<T> Copy(Allocator allocator)
+		{
+			var copy = new DecreseableMinHeap<T>();
+
+			copy._items = new NativeList<T>(_items.Capacity, allocator);
+			copy._items.CopyFrom(_items);
+			
+			copy._values = new NativeList<float>(_values.Capacity, allocator);
+			copy._values.CopyFrom(_values);
+			
+			copy._map = new NativeHashMap<T, int>(_items.Capacity, allocator);
+			var enumerator = _map.GetEnumerator();
+			while (enumerator.MoveNext())
+			{
+				copy._map.Add(enumerator.Current.Key, enumerator.Current.Value);
+			}
+
+			return copy;
 		}
 	}
 }

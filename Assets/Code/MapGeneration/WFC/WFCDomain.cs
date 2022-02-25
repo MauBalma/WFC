@@ -30,6 +30,32 @@ namespace Balma.WFC
         public NativeReference<bool> contradiction;
         public NativeList<WFCPropagateStackHelper> propagateStack;
         
+        public void InitializeClean(WFCStaticDomain staticDomain)
+        {
+            contradiction.Value = false;
+            open.Clear();
+            propagateStack.Clear();
+                    
+            //TODO IJobFor to clean possible
+            for (var i = 0; i < staticDomain.size.x; i++)
+            for (var j = 0; j < staticDomain.size.y; j++)
+            for (var k = 0; k < staticDomain.size.z; k++)
+            {
+                var coordinate = new int3(i, j, k);
+        
+                var possible = possibleTiles[coordinate];
+                possible.Clear();
+        
+                for (var tileIndex = 0; tileIndex < staticDomain.tileCount; tileIndex++)
+                {
+                    possible.Add(new TileKey(){index = tileIndex});
+                }
+        
+                possibleTiles[coordinate] = possible;//Reassign, is a struct not a reference
+                open.Push(coordinate, 1);
+            }
+        }
+        
         public void Dispose()
         {
             using var possiblesList = possibleTiles.GetEnumerator();

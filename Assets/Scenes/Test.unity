@@ -2240,14 +2240,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   contradictionPointer: {fileID: 204198705}
-  resolutionMode: 0
+  resolutionMode: 1
   size:
     x: 16
     y: 4
     z: 16
   tileSize: 1
   seed: 1
-  forceSeed: 0
   tileSet:
   - {fileID: 1196774984}
   - {fileID: 1048718123}

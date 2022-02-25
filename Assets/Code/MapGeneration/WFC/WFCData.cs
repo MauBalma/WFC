@@ -8,7 +8,7 @@ namespace Balma.WFC
     {
         public WFCDomain domain;
         public WFCStaticDomain staticDomain;
-            
+
         private TileKey Collapse(UnsafeList<TileKey> possibles)
         {
             var totalWeight = 0f;

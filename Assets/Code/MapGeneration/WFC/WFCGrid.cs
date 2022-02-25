@@ -17,8 +17,6 @@ namespace Balma.WFC
         {
             SingleTry,
             MultipleTries,
-            Backtracking,
-            //BackJumping,//Coming soon
         }
 
         public Transform contradictionPointer;
@@ -146,9 +144,6 @@ namespace Balma.WFC
                 case ResolutionMode.MultipleTries:
                     RunMultipleTries();
                     break;
-                case ResolutionMode.Backtracking:
-                    RunBacktracking();
-                    break;
             }
         }
 
@@ -156,7 +151,7 @@ namespace Balma.WFC
         {
             var domain = GetCleanDomain();
 
-            var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
+            var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
             job.Run();
 
             Print(domain.possibleTiles);
@@ -170,8 +165,6 @@ namespace Balma.WFC
         {
             var domain = GetCleanDomain();
             var tries = 0;
-            
-            
 
             do
             {
@@ -182,7 +175,7 @@ namespace Balma.WFC
                     return;
                 }
                 
-                var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
+                var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
                 job.Run();
                 seed = domain.rng.NextUInt();
             }
@@ -190,32 +183,6 @@ namespace Balma.WFC
 
             Print(domain.possibleTiles);
             domain.Dispose();
-        }
-
-        private void RunBacktracking()
-        {
-            
-            var domain = GetCleanDomain();
-            var tries = 0;
-
-            do
-            {
-                if (tries++ > 1000)
-                {
-                    Debug.LogWarning("Cannot resolve in 1000 iterations.");
-                    domain.Dispose();
-                    return;
-                }
-                
-                var job = new WFCJob<Rules>(rules, ref staticDomain, ref domain);
-                job.Run();
-                seed = domain.rng.NextUInt();
-            }
-            while (domain.contradiction.Value);
-
-            Print(domain.possibleTiles);
-            domain.Dispose();
-            
         }
 
         private WFCDomain GetCleanDomain()
@@ -235,6 +202,34 @@ namespace Balma.WFC
             {
                 var coordinate = new int3(i, j, k);
                 var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, Allocator.TempJob);
+                domain.possibleTiles[coordinate] = tileList;
+            }
+            
+            return domain;
+        }
+        
+        private WFCDomain CopyDomain(WFCDomain original)
+        {
+            var domain = new WFCDomain()
+            {
+                rng = original.rng,
+                possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(original.possibleTiles.Capacity, Allocator.TempJob),
+                open = original.open.Copy(Allocator.TempJob),
+                contradiction = new NativeReference<bool>(original.contradiction.Value, Allocator.TempJob),
+                propagateStack = new NativeList<WFCPropagateStackHelper>(Allocator.TempJob),
+            };
+            
+            for (var i = 0; i < staticDomain.size.x; i++)
+            for (var j = 0; j < staticDomain.size.y; j++)
+            for (var k = 0; k < staticDomain.size.z; k++)
+            {
+                var coordinate = new int3(i, j, k);
+                var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, Allocator.TempJob);
+                var originalList = original.possibleTiles[coordinate];
+                for (int l = 0; l < originalList.Length; l++)
+                {
+                    tileList.Add(originalList[l]);
+                }
                 domain.possibleTiles[coordinate] = tileList;
             }
             
