@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using Balma.ADT;
 using Unity.Collections;
@@ -21,6 +22,8 @@ namespace Balma.WFC
 
         public Transform contradictionPointer;
         public ResolutionMode resolutionMode = ResolutionMode.MultipleTries;
+        public bool deferred = false;
+        public float stepTime = 0.001f;
         
         public int3 size = 5;
         public float tileSize = 1f;
@@ -38,6 +41,8 @@ namespace Balma.WFC
         
         private NativeList<int> prefabIndex;
         private NativeList<Quaternion> prefabRotation;
+
+        private Coroutine coroutine;
 
         private void Start()
         {
@@ -128,7 +133,7 @@ namespace Balma.WFC
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.R))
+            if (Input.GetKeyDown(KeyCode.R) && coroutine == null)
             {
                 Generate();
             }
@@ -139,7 +144,8 @@ namespace Balma.WFC
             switch (resolutionMode)
             {
                 case ResolutionMode.SingleTry:
-                    RunSingleTry();
+                    if(!deferred) RunSingleTry();
+                    else RunSingleTryDeferred();
                     break;
                 case ResolutionMode.MultipleTries:
                     RunMultipleTries();
@@ -149,7 +155,7 @@ namespace Balma.WFC
 
         private void RunSingleTry()
         {
-            var domain = GetCleanDomain();
+            var domain = GetCleanDomain(Allocator.TempJob);
 
             var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
             job.Run();
@@ -157,13 +163,40 @@ namespace Balma.WFC
             Print(domain.possibleTiles);
 
             domain.Dispose();
-
             seed = domain.rng.NextUInt();
         }
         
+        private void RunSingleTryDeferred()
+        {
+            var domain = GetCleanDomain(Allocator.Persistent);
+            var observedCoordinate = new NativeReference<int3>(Allocator.Persistent);
+            new WFCInitializeJob<Rules>(rules, ref staticDomain, ref domain).Run();
+            Print(domain.possibleTiles);
+
+            coroutine = StartCoroutine(Routine());
+            
+            IEnumerator Routine()
+            {
+                while (domain.open.Count > 0 && !domain.contradiction.Value)
+                {
+                    new WFCResolveStepJob(ref staticDomain, ref domain, ref observedCoordinate).Run();
+                    
+                    PrintSingle(observedCoordinate.Value, domain.possibleTiles);
+                    
+                    yield return new WaitForSeconds(stepTime);
+                }
+
+                domain.Dispose();
+                observedCoordinate.Dispose();
+                coroutine = null;
+                
+                seed = domain.rng.NextUInt();
+            }
+        }
+
         private void RunMultipleTries()
         {
-            var domain = GetCleanDomain();
+            var domain = GetCleanDomain(Allocator.TempJob);
             var tries = 0;
 
             do
@@ -185,15 +218,15 @@ namespace Balma.WFC
             domain.Dispose();
         }
 
-        private WFCDomain GetCleanDomain()
+        private WFCDomain GetCleanDomain(Allocator allocator)
         {
             var domain = new WFCDomain()
             {
                 rng = new Random(seed),
-                possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, Allocator.TempJob),
-                open = new DecreseableMinHeap<int3>(Allocator.TempJob),
-                contradiction = new NativeReference<bool>(false, Allocator.TempJob),
-                propagateStack = new NativeList<WFCPropagateStackHelper>(Allocator.TempJob),
+                possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, allocator),
+                open = new DecreseableMinHeap<int3>(allocator),
+                contradiction = new NativeReference<bool>(false, allocator),
+                propagateStack = new NativeList<WFCPropagateStackHelper>(allocator),
             };
             
             for (var i = 0; i < staticDomain.size.x; i++)
@@ -201,35 +234,7 @@ namespace Balma.WFC
             for (var k = 0; k < staticDomain.size.z; k++)
             {
                 var coordinate = new int3(i, j, k);
-                var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, Allocator.TempJob);
-                domain.possibleTiles[coordinate] = tileList;
-            }
-            
-            return domain;
-        }
-        
-        private WFCDomain CopyDomain(WFCDomain original)
-        {
-            var domain = new WFCDomain()
-            {
-                rng = original.rng,
-                possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(original.possibleTiles.Capacity, Allocator.TempJob),
-                open = original.open.Copy(Allocator.TempJob),
-                contradiction = new NativeReference<bool>(original.contradiction.Value, Allocator.TempJob),
-                propagateStack = new NativeList<WFCPropagateStackHelper>(Allocator.TempJob),
-            };
-            
-            for (var i = 0; i < staticDomain.size.x; i++)
-            for (var j = 0; j < staticDomain.size.y; j++)
-            for (var k = 0; k < staticDomain.size.z; k++)
-            {
-                var coordinate = new int3(i, j, k);
-                var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, Allocator.TempJob);
-                var originalList = original.possibleTiles[coordinate];
-                for (int l = 0; l < originalList.Length; l++)
-                {
-                    tileList.Add(originalList[l]);
-                }
+                var tileList = new UnsafeList<TileKey>(staticDomain.tileCount, allocator);
                 domain.possibleTiles[coordinate] = tileList;
             }
             
@@ -257,6 +262,16 @@ namespace Balma.WFC
                 var tile = Instantiate(tileSet[prefabIndex[tileKey.index]], new Vector3(i, j, k) * tileSize, prefabRotation[tileKey.index]);
                 instanced.Add(tile.gameObject);
             }
+        }
+        
+        private void PrintSingle(int3 coordinates, NativeHashMap<int3, UnsafeList<TileKey>> result)
+        {
+            var possibles = result[coordinates];
+            if (possibles.Length != 1) return;
+
+            var tileKey = possibles[0];
+            var tile = Instantiate(tileSet[prefabIndex[tileKey.index]], (float3)coordinates * tileSize, prefabRotation[tileKey.index]);
+            instanced.Add(tile.gameObject);
         }
 
         private void UnfoldMultiTiles()
