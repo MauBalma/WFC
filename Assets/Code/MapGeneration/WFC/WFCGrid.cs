@@ -14,17 +14,6 @@ namespace Balma.WFC
 {
     public class WFCGrid : MonoBehaviour
     {
-        public enum ResolutionMode
-        {
-            SingleTry,
-            SingleTryDeferred,
-            MultipleTries,
-        }
-
-        public Transform contradictionPointer;
-        public ResolutionMode resolutionMode = ResolutionMode.MultipleTries;
-        public float stepTime = 0.001f;
-        
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
@@ -44,6 +33,11 @@ namespace Balma.WFC
         private NativeList<Quaternion> prefabRotation;
 
         private Coroutine coroutine;
+
+        private bool generating;
+        private JobHandle handle;
+        private WFCDomain domain;
+        int tries;
 
         private void Start()
         {
@@ -134,92 +128,53 @@ namespace Balma.WFC
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.R) && coroutine == null)
+            if (Input.GetKeyDown(KeyCode.R))
             {
                 Generate();
             }
         }
 
+        private void LateUpdate()
+        {
+            if (generating && handle.IsCompleted)
+            {
+                handle.Complete();
+
+                if (!domain.contradiction.Value)
+                {
+                    if (tries++ > 1000)
+                    {
+                        Debug.LogWarning("Cannot resolve in 1000 iterations or less.");
+                        domain.Dispose();
+                        return;
+                    }
+                    
+                    Print(domain.possibleTiles);
+
+                    generating = false;
+                    handle = default;
+                    domain.Dispose();
+                }
+                else
+                {
+                    tries = 0;
+                    handle = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain).Schedule();
+                }
+            }
+        }
+
         private void Generate()
         {
-            switch (resolutionMode)
-            {
-                case ResolutionMode.SingleTry:
-                    RunSingleTry();
-                    break;
-                case ResolutionMode.SingleTryDeferred:
-                    RunSingleTryDeferred();
-                    break;
-                case ResolutionMode.MultipleTries:
-                    RunMultipleTries();
-                    break;
-            }
-        }
-
-        private void RunSingleTry()
-        {
-            var domain = GetCleanDomain(Allocator.TempJob);
-
-            var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
-            job.Run();
-
-            Print(domain.possibleTiles);
-
-            domain.Dispose();
-            if(!forceSeed) seed = domain.rng.NextUInt();
-        }
-        
-        private void RunSingleTryDeferred()
-        {
-            var domain = GetCleanDomain(Allocator.Persistent);
-            var observedCoordinate = new NativeReference<int3>(Allocator.Persistent);
-            new WFCInitializeJob<Rules>(rules, ref staticDomain, ref domain).Run();
-            Print(domain.possibleTiles);
-
-            coroutine = StartCoroutine(Routine());
-            
-            IEnumerator Routine()
-            {
-                while (domain.open.Count > 0 && !domain.contradiction.Value)
-                {
-                    new WFCResolveStepJob(ref staticDomain, ref domain, ref observedCoordinate).Run();
-                    
-                    PrintSingle(observedCoordinate.Value, domain.possibleTiles);
-                    
-                    yield return new WaitForSeconds(stepTime);
-                }
-
-                domain.Dispose();
-                observedCoordinate.Dispose();
-                coroutine = null;
-                
-                if(!forceSeed) seed = domain.rng.NextUInt();
-            }
+            if(!generating)RunMultipleTries();
         }
 
         private void RunMultipleTries()
         {
-            var domain = GetCleanDomain(Allocator.TempJob);
-            var tries = 0;
-
-            do
-            {
-                if (tries++ > 1000)
-                {
-                    Debug.LogWarning("Cannot resolve in 1000 iterations.");
-                    domain.Dispose();
-                    return;
-                }
-                
-                var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
-                job.Run();
-                
-                if(!forceSeed) seed = domain.rng.NextUInt();
-            }
-            while (domain.contradiction.Value);
-
-            Print(domain.possibleTiles);
-            domain.Dispose();
+            domain = GetCleanDomain(Allocator.Persistent);
+            tries = 0;
+            handle = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain).Schedule();
+            generating = true;
+            if(!forceSeed) seed = domain.rng.NextUInt();
         }
 
         private WFCDomain GetCleanDomain(Allocator allocator)
