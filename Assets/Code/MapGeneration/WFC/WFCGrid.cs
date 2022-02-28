@@ -17,17 +17,18 @@ namespace Balma.WFC
         public enum ResolutionMode
         {
             SingleTry,
+            SingleTryDeferred,
             MultipleTries,
         }
 
         public Transform contradictionPointer;
         public ResolutionMode resolutionMode = ResolutionMode.MultipleTries;
-        public bool deferred = false;
         public float stepTime = 0.001f;
         
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
+        public bool forceSeed = false;
         public List<Tile> tileSet;
         public MultiTile[] multiTileSet;
 
@@ -144,8 +145,10 @@ namespace Balma.WFC
             switch (resolutionMode)
             {
                 case ResolutionMode.SingleTry:
-                    if(!deferred) RunSingleTry();
-                    else RunSingleTryDeferred();
+                    RunSingleTry();
+                    break;
+                case ResolutionMode.SingleTryDeferred:
+                    RunSingleTryDeferred();
                     break;
                 case ResolutionMode.MultipleTries:
                     RunMultipleTries();
@@ -163,7 +166,7 @@ namespace Balma.WFC
             Print(domain.possibleTiles);
 
             domain.Dispose();
-            seed = domain.rng.NextUInt();
+            if(!forceSeed) seed = domain.rng.NextUInt();
         }
         
         private void RunSingleTryDeferred()
@@ -190,7 +193,7 @@ namespace Balma.WFC
                 observedCoordinate.Dispose();
                 coroutine = null;
                 
-                seed = domain.rng.NextUInt();
+                if(!forceSeed) seed = domain.rng.NextUInt();
             }
         }
 
@@ -210,7 +213,8 @@ namespace Balma.WFC
                 
                 var job = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain);
                 job.Run();
-                seed = domain.rng.NextUInt();
+                
+                if(!forceSeed) seed = domain.rng.NextUInt();
             }
             while (domain.contradiction.Value);
 

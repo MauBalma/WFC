@@ -25,7 +25,8 @@ namespace Balma.WFC
 
             while (data.domain.open.Count > 0)
             {
-                data.Observe(data.domain.open.Pop());
+                data.Observe(data.domain.open.Pop(out var entropy));
+                if(entropy < 0) continue;
                 if(data.domain.contradiction.Value) return;//Abort
             }
         }
@@ -66,7 +67,8 @@ namespace Balma.WFC
 
         public void Execute()
         {
-            observedCoordinates.Value = data.domain.open.Pop();
+            observedCoordinates.Value = data.domain.open.Pop(out var entropy);
+            if(entropy < 0) return;
             data.Observe(observedCoordinates.Value);
         }
     }
