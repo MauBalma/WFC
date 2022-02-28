@@ -1,5 +1,5 @@
 ﻿using System;
-using UnityEditor;
+//using UnityEditor;
 using UnityEngine;
 
 namespace Balma.WFC
@@ -44,14 +44,14 @@ namespace Balma.WFC
         private void OnDrawGizmos()
         {
             var v = 0.45f;
-            Handles.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);
+            //Handles.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);
             Draw(new Vector3(v,0,0),   connections[0]);
             Draw(new Vector3(0,0,v),  connections[1]);
             Draw(new Vector3(-v,0,0), connections[2]);
             Draw(new Vector3(0,0,-v),  connections[3]);
             Draw(new Vector3(0,v,0),   connections[4]);
             Draw(new Vector3(0,-v,0),  connections[5]);
-            Handles.matrix = Matrix4x4.identity;
+            //Handles.matrix = Matrix4x4.identity;
             Gizmos.matrix = Matrix4x4.TRS(transform.position, Quaternion.identity, Vector3.one);
             Gizmos.DrawWireCube(Vector3.zero, Vector3.one*.99f);
         }
@@ -67,7 +67,7 @@ namespace Balma.WFC
                 if (connection.rotation != ConnectionRotation.Indistinct)
                     str += $"({connection.rotation.ToString()})";
 
-                Handles.Label(v, str);
+                //Handles.Label(v, str);
             }
         }
 
