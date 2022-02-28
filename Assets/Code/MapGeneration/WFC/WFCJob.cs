@@ -22,7 +22,7 @@ namespace Balma.WFC
         {
             data.domain.InitializeClean(data.staticDomain);
             rules.ApplyInitialConditions(ref data);
-
+            
             while (data.domain.open.Count > 0)
             {
                 data.Observe(data.domain.open.Pop(out var entropy));

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Balma.ADT;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -8,12 +9,16 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
+using Debug = UnityEngine.Debug;
 using Random = Unity.Mathematics.Random;
 
 namespace Balma.WFC
 {
     public class WFCGrid : MonoBehaviour
     {
+        public event Action OnStartGeneration;
+        public event Action OnEndGeneration;
+        
         public int3 size = 5;
         public float tileSize = 1f;
         public uint seed = 69420;
@@ -32,12 +37,13 @@ namespace Balma.WFC
         private NativeList<int> prefabIndex;
         private NativeList<Quaternion> prefabRotation;
 
-        private Coroutine coroutine;
+        public int Tries { get; private set; }
+        public float generationTime { get; private set; }
 
-        private bool generating;
         private JobHandle handle;
         private WFCDomain domain;
-        int tries;
+        private bool generating;
+        private float startGenerationTime;
 
         private void Start()
         {
@@ -125,13 +131,21 @@ namespace Balma.WFC
                 grassKey = tileKeys[grassTile],
             };
         }
-
-        private void Update()
+        
+        public void Generate()
         {
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                Generate();
-            }
+            if(!generating) RunMultipleTries();
+        }
+
+        private void RunMultipleTries()
+        {
+            domain = GetCleanDomain(Allocator.Persistent);
+            handle = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain).Schedule();
+            generating = true;
+            startGenerationTime = Time.realtimeSinceStartup;
+            if(!forceSeed) seed = domain.rng.NextUInt();
+
+            if (OnStartGeneration != null) OnStartGeneration();
         }
 
         private void LateUpdate()
@@ -142,7 +156,9 @@ namespace Balma.WFC
 
                 if (!domain.contradiction.Value)
                 {
-                    if (tries++ > 1000)
+                    generationTime = Time.realtimeSinceStartup - startGenerationTime;
+                    
+                    if (Tries++ > 1000)
                     {
                         Debug.LogWarning("Cannot resolve in 1000 iterations or less.");
                         domain.Dispose();
@@ -154,27 +170,16 @@ namespace Balma.WFC
                     generating = false;
                     handle = default;
                     domain.Dispose();
+
+                    if (OnEndGeneration != null) OnEndGeneration();
                 }
                 else
                 {
-                    tries = 0;
+                    Tries++;
                     handle = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain).Schedule();
+                    if(!forceSeed) seed = domain.rng.NextUInt();
                 }
             }
-        }
-
-        private void Generate()
-        {
-            if(!generating)RunMultipleTries();
-        }
-
-        private void RunMultipleTries()
-        {
-            domain = GetCleanDomain(Allocator.Persistent);
-            tries = 0;
-            handle = new WFCResolveAllJob<Rules>(rules, ref staticDomain, ref domain).Schedule();
-            generating = true;
-            if(!forceSeed) seed = domain.rng.NextUInt();
         }
 
         private WFCDomain GetCleanDomain(Allocator allocator)
