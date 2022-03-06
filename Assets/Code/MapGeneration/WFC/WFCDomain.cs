@@ -26,7 +26,7 @@ namespace Balma.WFC
     {
         public Random rng;
         public NativeHashMap<int3, UnsafeList<TileKey>> possibleTiles;
-        public DecreseableMinHeap<int3> open;
+        public MinHeap<int3> open;
         public NativeReference<bool> contradiction;
         public NativeList<WFCPropagateStackHelper> propagateStack;
         

@@ -188,7 +188,7 @@ namespace Balma.WFC
             {
                 rng = new Random(seed),
                 possibleTiles = new NativeHashMap<int3, UnsafeList<TileKey>>(1024, allocator),
-                open = new DecreseableMinHeap<int3>(allocator),
+                open = new MinHeap<int3>(allocator),
                 contradiction = new NativeReference<bool>(false, allocator),
                 propagateStack = new NativeList<WFCPropagateStackHelper>(allocator),
             };
